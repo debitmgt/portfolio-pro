@@ -7,9 +7,7 @@ import Stripe from 'stripe'
 export const dynamic = 'force-dynamic'
 
 // Disable body parsing — Stripe needs the raw body to verify signature
-export const config = {
-  api: { bodyParser: false },
-}
+
 
 async function getRawBody(req: NextRequest): Promise<Buffer> {
   const chunks: Uint8Array[] = []
