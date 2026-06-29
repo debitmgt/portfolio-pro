@@ -1,6 +1,7 @@
 'use client'
+
 export const dynamic = 'force-dynamic'
-  export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -78,7 +79,7 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={loading} style={styles.btn}>
-            {loading ? 'Loading…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
 
@@ -139,14 +140,13 @@ const styles: Record<string, React.CSSProperties> = {
   btn: {
     marginTop: 8,
     padding: '10px 16px',
-    background: 'var(--accent-dim)',
+    background: 'var(--accent)',
     color: '#fff',
     borderRadius: 6,
     fontWeight: 600,
     fontSize: 15,
     border: 'none',
     cursor: 'pointer',
-    transition: 'opacity 0.15s',
   },
   error: {
     background: '#2a1215',
@@ -181,6 +181,3 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 0,
   },
 }
-
-
-
