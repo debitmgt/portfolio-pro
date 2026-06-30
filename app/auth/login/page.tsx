@@ -2,12 +2,23 @@
 
 export const dynamic = 'force-dynamic'
 
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function passwordStrength(pw: string) {
+  let score = 0
+  if (pw.length >= 8) score++
+  if (/[A-Z]/.test(pw)) score++
+  if (/[0-9]/.test(pw)) score++
+  if (/[^A-Za-z0-9]/.test(pw)) score++
+
+  const labels = ['Very weak', 'Weak', 'Okay', 'Strong', 'Very strong']
+  return { score, label: labels[score] || 'Very weak' }
+}
 
 export default function LoginPage() {
   const supabase = createClient()
@@ -24,6 +35,9 @@ export default function LoginPage() {
 
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  const strength = useMemo(() => passwordStrength(password), [password])
 
   const validate = useCallback(() => {
     let valid = true
@@ -43,6 +57,28 @@ export default function LoginPage() {
 
     return valid
   }, [email, password])
+
+  const handleOAuth = useCallback(
+    async (provider: 'github' | 'google') => {
+      setError('')
+      setMessage('')
+      setLoading(true)
+      try {
+        await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: `${location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          },
+        })
+        setMessage(`Redirecting to ${provider} for authentication...`)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'OAuth sign-in failed')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [redirectTo, supabase]
+  )
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -100,6 +136,26 @@ export default function LoginPage() {
           </div>
         )}
 
+        <div className={styles.oauthRow}>
+          <button
+            type="button"
+            className={styles.oauthBtn}
+            onClick={() => handleOAuth('github')}
+            disabled={loading}
+          >
+            Continue with GitHub
+          </button>
+
+          <button
+            type="button"
+            className={styles.oauthBtn}
+            onClick={() => handleOAuth('google')}
+            disabled={loading}
+          >
+            Continue with Google
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className={styles.form} noValidate>
           <label htmlFor="email" className={styles.label}>
             Email
@@ -131,31 +187,48 @@ export default function LoginPage() {
 
           <label htmlFor="password" className={styles.label}>
             Password
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onBlur={() => {
-                if (password.length < 6) setPasswordError('Password must be at least 6 characters')
-                else setPasswordError('')
-              }}
-              className={`${styles.input} ${passwordError ? styles.inputError : ''}`}
-              placeholder="••••••••"
-              minLength={6}
-              disabled={loading}
-              aria-invalid={!!passwordError}
-              aria-describedby={passwordError ? 'password-error' : undefined}
-            />
+            <div className={styles.passwordRow}>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onBlur={() => {
+                  if (password.length < 6) setPasswordError('Password must be at least 6 characters')
+                  else setPasswordError('')
+                }}
+                className={`${styles.input} ${passwordError ? styles.inputError : ''}`}
+                placeholder="••••••••"
+                minLength={6}
+                disabled={loading}
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? 'password-error' : undefined}
+              />
+
+              <button
+                type="button"
+                className={styles.togglePw}
+                onClick={() => setShowPassword(s => !s)}
+                aria-pressed={showPassword}
+                disabled={loading}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </label>
           {passwordError && (
             <div id="password-error" className={styles.fieldError} role="alert">
               {passwordError}
             </div>
           )}
+
+          <div className={styles.strengthRow} aria-hidden={false}>
+            <div className={styles.strengthBar} data-score={strength.score} />
+            <div className={styles.strengthLabel}>{strength.label}</div>
+          </div>
 
           <button type="submit" disabled={loading} className={styles.btn} aria-busy={loading}>
             {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : 'Create account'}
