@@ -8,7 +8,7 @@ import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
+const ALL_TABS = ['Tracker', 'News', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
 
 interface Props {
   userId: string
@@ -237,6 +237,10 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 
         {activeTab === 'Fundamentals' && plan === 'pro' && (
           <FundamentalsTab holdings={holdings} />
+        )}
+
+        {activeTab === 'News' && plan === 'pro' && (
+          <NewsTab holdings={holdings} />
         )}
 
         {activeTab === 'Drawdown Alerts' && plan === 'pro' && (
@@ -735,6 +739,100 @@ function FundamentalsCard({ symbol }: { symbol: string }) {
       )}
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
         Data from Finnhub · Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
+      </p>
+    </div>
+  )
+}
+
+// ─── News Tab ─────────────────────────────────────────────────────────────────
+// Live headlines for whatever you currently hold — straight from Finnhub, no
+// commentary or rating layered on top. Purely informational, like the rest of
+// the Pro tabs post-repositioning.
+function NewsTab({ holdings }: { holdings: Holding[] }) {
+  return (
+    <ProTabShell title="News" description="Recent headlines for the companies you hold, refreshed live. Just the news — no commentary added.">
+      {holdings.length === 0 ? <EmptyState /> : (
+        <div style={{ display: 'grid', gap: 16 }}>
+          {holdings.map(h => (
+            <NewsCard key={h.id} symbol={h.symbol} />
+          ))}
+        </div>
+      )}
+    </ProTabShell>
+  )
+}
+
+interface NewsItem {
+  headline: string
+  source: string
+  url: string
+  datetime: number   // ms
+  summary: string
+}
+
+function NewsCard({ symbol }: { symbol: string }) {
+  const [items, setItems] = useState<NewsItem[] | null>(null)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    function load() {
+      setError(false)
+      fetch(`/api/finnhub?type=news&symbol=${encodeURIComponent(symbol)}`)
+        .then(res => {
+          if (!res.ok) throw new Error('failed')
+          return res.json()
+        })
+        .then((d: { items: NewsItem[] }) => { if (!cancelled) setItems(d.items) })
+        .catch(() => { if (!cancelled) setError(true) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }
+
+    setLoading(true)
+    load()
+    // Live refresh — headlines can change during market hours; matches the
+    // cache window on the API route (15 min) so this doesn't hammer Finnhub.
+    const interval = setInterval(load, 15 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [symbol])
+
+  function timeAgo(ms: number) {
+    const mins = Math.floor((Date.now() - ms) / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    return `${Math.floor(hours / 24)}d ago`
+  }
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{symbol}</div>
+      {loading ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
+      ) : error ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Couldn't load news for {symbol}.</p>
+      ) : !items || items.length === 0 ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No recent headlines for {symbol}.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {items.map((item, i) => (
+            <a
+              key={`${item.url}-${i}`}
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: 'block', padding: '10px 12px', borderRadius: 6, background: 'var(--bg)', color: 'inherit' }}
+            >
+              <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3, lineHeight: 1.35 }}>{item.headline}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.source} · {timeAgo(item.datetime)}</div>
+            </a>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
+        Headlines from Finnhub · Informational only, not commentary on whether to hold or sell.
       </p>
     </div>
   )

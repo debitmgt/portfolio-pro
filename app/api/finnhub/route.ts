@@ -58,6 +58,44 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ─── Company news (live headlines for a held ticker) ──────────────────────
+  // Finnhub's free-tier /company-news endpoint requires a from/to date range.
+  // We pull the last 7 days and cap the count client-side.
+  if (type === 'news') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+
+    const to = new Date()
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}&from=${fmt(from)}&to=${fmt(to)}&token=${key}`,
+        { next: { revalidate: 900 } }   // headlines don't need to be more than ~15min fresh
+      )
+      if (!res.ok) return NextResponse.json({ error: 'Failed to fetch news' }, { status: 502 })
+
+      const raw: Array<{ headline: string; source: string; url: string; datetime: number; summary: string }> = await res.json()
+
+      const items = (Array.isArray(raw) ? raw : [])
+        .filter(a => a.headline && a.url)
+        .sort((a, b) => b.datetime - a.datetime)
+        .slice(0, 8)
+        .map(a => ({
+          headline: a.headline,
+          source: a.source,
+          url: a.url,
+          datetime: a.datetime * 1000,   // Finnhub returns seconds; JS Date wants ms
+          summary: a.summary,
+        }))
+
+      return NextResponse.json({ symbol, items })
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch news' }, { status: 502 })
+    }
+  }
+
   // ─── Live quotes ───────────────────────────────────────────────────────────
   const symbols = searchParams.get('symbols')?.split(',').map(s => s.trim()).filter(Boolean) ?? []
 
