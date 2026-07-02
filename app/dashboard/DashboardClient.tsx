@@ -8,7 +8,7 @@ import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'News', 'Drawdown Alerts']
+const ALL_TABS = ['Tracker', 'News', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
 
 interface Props {
   userId: string
