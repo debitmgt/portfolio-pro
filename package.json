@@ -6,16 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:webhook:create": "stripe fixtures scripts/stripe-fixtures/subscription-created.json",
+    "test:webhook:cancel": "stripe fixtures scripts/stripe-fixtures/subscription-canceled.json",
+    "test:webhook:verify": "node --env-file=.env.local scripts/verify-webhook-sync.mjs"
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
-    "@supabase/ssr": "^0.5.1",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.43.0",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "stripe": "^15.7.0"
+    "stripe": "^22.3.0"
   },
   "devDependencies": {
     "@types/node": "^20",

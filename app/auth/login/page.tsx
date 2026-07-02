@@ -1,10 +1,142 @@
 'use client'
-
+// app/auth/login/page.tsx
 export const dynamic = 'force-dynamic'
 
-import { Suspense, useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import DisclaimerFooter from '@/components/DisclaimerFooter'
+
+function LoginForm() {
+  const supabase = createClient()
+  const router = useRouter()
+  const params = useSearchParams()
+  const redirectTo = params.get('redirectTo') ?? '/dashboard'
+  const plan = params.get('plan')
+  const urlError = params.get('error')
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [error, setError] = useState(urlError ?? '')
+  const [loading, setLoading] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  async function handleSubmit() {
+    setError('')
+    setLoading(true)
+    try {
+      if (mode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+              plan ? `/api/stripe/checkout?plan=${plan}` : redirectTo
+            )}`,
+          },
+        })
+        if (error) throw error
+        setSent(true)
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        if (plan) {
+          window.location.href = `/api/stripe/checkout?plan=${plan}`
+        } else {
+          router.push(redirectTo)
+          router.refresh()
+        }
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (sent) {
+    return (
+      <AuthShell>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
+          <h2 style={{ marginBottom: 12, fontSize: 20 }}>Check your email</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
+            We sent a confirmation link to <strong>{email}</strong>.<br />
+            Click it to activate your account and get started.
+          </p>
+        </div>
+      </AuthShell>
+    )
+  }
+
+  return (
+    <AuthShell>
+      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 4 }}>
+          <span style={{
+            width: 26, height: 26, background: 'var(--accent)', borderRadius: 5,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 800, fontSize: 14,
+          }}>O</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio</span>
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--muted)' }}>
+          {mode === 'login' ? 'Sign in to your account' : 'Create your account'}
+        </h2>
+      </div>
+
+      <label style={labelStyle}>Email</label>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        style={{ marginBottom: 14 }}
+        autoComplete="email"
+      />
+
+      <label style={labelStyle}>Password</label>
+      <input
+        type="password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        placeholder="••••••••"
+        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+        style={{ marginBottom: 20 }}
+        autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+      />
+
+      {error && (
+        <div style={{
+          background: 'var(--red-tint)', border: '1px solid var(--red)',
+          borderRadius: 4, padding: '10px 14px', marginBottom: 16,
+        }}>
+          <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>
+        </div>
+      )}
+
+      <button
+        className="btn-primary"
+        onClick={handleSubmit}
+        disabled={loading}
+        style={{ width: '100%', padding: '11px 0', fontSize: 15 }}
+      >
+        {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+      </button>
+
+      <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+        {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+        <button
+          onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
+          style={{ background: 'none', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
+        >
+          {mode === 'login' ? 'Sign up free' : 'Sign in'}
+        </button>
+      </p>
+    </AuthShell>
+  )
+}
 
 export default function LoginPage() {
   return (
@@ -14,178 +146,25 @@ export default function LoginPage() {
   )
 }
 
-function LoginForm() {
-  const supabase = createClient()
-  const router = useRouter()
-  const params = useSearchParams()
-  const redirectTo = params.get('redirectTo') || '/dashboard'
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
-  const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setMessage('')
-    setLoading(true)
-
-    try {
-      if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${location.origin}/auth/callback?redirectTo=${redirectTo}` },
-        })
-        if (error) throw error
-        setMessage('Check your email to confirm your account.')
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        router.push(redirectTo)
-        router.refresh()
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.logo}>Portfolio Pro</h1>
-        <p style={styles.sub}>{mode === 'login' ? 'Sign in to your account' : 'Create your account'}</p>
-
-        {error && <div style={styles.error}>{error}</div>}
-        {message && <div style={styles.success}>{message}</div>}
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>Email
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              style={styles.input}
-              placeholder="you@example.com"
-            />
-          </label>
-          <label style={styles.label}>Password
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              style={styles.input}
-              placeholder="••••••••"
-              minLength={6}
-            />
-          </label>
-          <button type="submit" disabled={loading} style={styles.btn}>
-            {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
-
-        <p style={styles.toggle}>
-          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={styles.link}>
-            {mode === 'login' ? 'Sign up' : 'Sign in'}
-          </button>
-        </p>
+    <main style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg)', padding: 24,
+    }}>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 6, padding: '36px 32px', width: '100%', maxWidth: 400,
+      }}>
+        {children}
       </div>
-    </div>
+      <div style={{ width: '100%', maxWidth: 400, marginTop: 16 }}>
+        <DisclaimerFooter />
+      </div>
+    </main>
   )
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    background: 'var(--bg)',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 400,
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 12,
-    padding: 32,
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: 'var(--accent)',
-    marginBottom: 4,
-  },
-  sub: {
-    color: 'var(--muted)',
-    marginBottom: 24,
-    fontSize: 14,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-  },
-  label: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    fontSize: 14,
-    fontWeight: 500,
-  },
-  input: {
-    width: '100%',
-  },
-  btn: {
-    marginTop: 8,
-    padding: '10px 16px',
-    background: 'var(--accent)',
-    color: '#fff',
-    borderRadius: 6,
-    fontWeight: 600,
-    fontSize: 15,
-    border: 'none',
-    cursor: 'pointer',
-  },
-  error: {
-    background: '#2a1215',
-    border: '1px solid var(--red)',
-    color: 'var(--red)',
-    borderRadius: 6,
-    padding: '10px 14px',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  success: {
-    background: '#0d2119',
-    border: '1px solid var(--green)',
-    color: 'var(--green)',
-    borderRadius: 6,
-    padding: '10px 14px',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  toggle: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontSize: 14,
-    color: 'var(--muted)',
-  },
-  link: {
-    color: 'var(--accent)',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 14,
-    padding: 0,
-  },
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 6, fontWeight: 500,
 }

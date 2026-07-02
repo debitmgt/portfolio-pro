@@ -1,59 +1,137 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* app/globals.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --border: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-dim: #1f6feb;
-  --green: #3fb950;
-  --red: #f85149;
-  --pro: #d29922;
+  /* Surfaces — clean white workspace, not a dark terminal */
+  --bg:           #ffffff;
+  --surface:      #f6f7f9;
+  --surface-2:    #eef0f3;
+  --border:       #e2e5ea;
+
+  /* Type */
+  --text:         #14161c;
+  --muted:        #6b7280;
+  --muted-2:      #9aa1ad;
+
+  /* Single deliberate accent — used for CTAs, active states, and links only */
+  --accent:       #ff6a00;
+  --accent-hover: #e05e00;
+  --accent-tint:  #fff2e8;
+
+  /* Data semantics — gains / losses / caution, the vocabulary of the page */
+  --green:        #0ea968;
+  --green-tint:   #e7f8f1;
+  --red:          #e0393e;
+  --red-tint:     #fbe9ea;
+  --yellow:       #b8790a;
+  --yellow-tint:  #fdf3e0;
 }
 
-body {
+html, body {
+  height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  min-height: 100vh;
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1, "lnum" 1;   /* tabular figures — numbers line up in tables */
 }
 
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
+a { color: inherit; text-decoration: none; }
+a.link { color: var(--accent); font-weight: 600; }
+a.link:hover { color: var(--accent-hover); text-decoration: underline; }
 
-a:hover {
-  text-decoration: underline;
+/* Small tracked all-caps labels — the recurring "eyebrow" device used for
+   section labels, table headers, and plan badges throughout the app. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 button {
   cursor: pointer;
   border: none;
-  background: none;
-  font: inherit;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  transition: background-color .15s, border-color .15s, opacity .15s;
+  font-family: inherit;
+}
+button:hover:not(:disabled) { opacity: .9; }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 input, select, textarea {
-  font: inherit;
-  background: var(--surface);
-  color: var(--text);
+  background: #fff;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 14px;
   padding: 8px 12px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+input::placeholder { color: var(--muted-2); }
+
+.btn-primary  { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); opacity: 1; }
+.btn-outline  { background: #fff; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover:not(:disabled) { background: var(--surface); opacity: 1; }
+.btn-danger   { background: var(--red); color: #fff; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Homepage market ticker — auto-scrolling strip of major index quotes */
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 32s linear infinite;
+}
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 28px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.ticker-label { color: var(--muted); font-weight: 600; }
+.ticker-price { font-weight: 700; font-feature-settings: "tnum" 1; }
+.ticker-muted { color: var(--muted-2); font-weight: 400; }
+.ticker-change { font-weight: 600; font-feature-settings: "tnum" 1; }
+.ticker-change.up { color: var(--green); }
+.ticker-change.down { color: var(--red); }
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 
-input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }

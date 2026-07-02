@@ -1,21 +1,35 @@
+// app/dashboard/page.tsx
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import DashboardClient from './DashboardClient'
-
-export const dynamic = 'force-dynamic'
+import type { Holding, Plan } from '@/lib/supabase/types'
+import { Suspense } from 'react'
 
 export default async function DashboardPage() {
   const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/auth/login')
 
-  const [profileRes, holdingsRes] = await Promise.all([
-    supabase.from('profiles').select('plan, email').eq('id', session.user.id).single(),
-    supabase.from('holdings').select('*').eq('user_id', session.user.id).order('created_at'),
+  // Use getUser() — verifies JWT with Supabase auth server (more secure than getSession())
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/auth/login')
+
+  const userId = user.id
+
+  const [profileResult, holdingsResult] = await Promise.all([
+    supabase.from('profiles').select('plan').eq('id', userId).single(),
+    supabase.from('holdings').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
   ])
 
-  const plan = profileRes.data?.plan ?? 'free'
-  const holdings = holdingsRes.data ?? []
+  const plan: Plan = (profileResult.data?.plan as Plan) ?? 'free'
+  const holdings: Holding[] = (holdingsResult.data ?? []) as Holding[]
 
-  return <DashboardClient plan={plan} initialHoldings={holdings} userEmail={session.user.email ?? ''} />
+  return (
+    <Suspense>
+      <DashboardClient
+        userId={userId}
+        email={user.email ?? ''}
+        plan={plan}
+        initialHoldings={holdings}
+      />
+    </Suspense>
+  )
 }

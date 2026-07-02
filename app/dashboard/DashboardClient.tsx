@@ -1,346 +1,879 @@
 'use client'
+// app/dashboard/DashboardClient.tsx
 import { useState, useEffect, useCallback } from 'react'
+import type { Holding, Plan } from '@/lib/supabase/types'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
-
-type Holding = {
-  id: string
-  symbol: string
-  shares: number
-  cost_basis: number
-  trail_pct: number
-}
-
-type Price = { symbol: string; price: number; change: number; changePct: number }
-
-type Props = {
-  plan: string
-  initialHoldings: Holding[]
-  userEmail: string
-}
+import { useRouter, useSearchParams } from 'next/navigation'
+import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-export default function DashboardClient({ plan, initialHoldings, userEmail }: Props) {
-  const supabase = createClient()
+const ALL_TABS = ['Tracker', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
+
+interface Props {
+  userId: string
+  email: string
+  plan: Plan
+  initialHoldings: Holding[]
+}
+
+interface PriceMap { [symbol: string]: number }
+
+export default function DashboardClient({ userId, email, plan, initialHoldings }: Props) {
   const router = useRouter()
-  const isPro = plan === 'pro'
+  const params = useSearchParams()
+  const supabase = createClient()
 
   const [holdings, setHoldings] = useState<Holding[]>(initialHoldings)
-  const [prices, setPrices] = useState<Record<string, Price>>({})
-  const [loading, setLoading] = useState(false)
+  const [prices, setPrices] = useState<PriceMap>({})
+  const [activeTab, setActiveTab] = useState('Tracker')
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
   const [priceLoading, setPriceLoading] = useState(false)
-  const [showAdd, setShowAdd] = useState(false)
-  const [newSym, setNewSym] = useState('')
+
+  // Add-holding form state
+  const [newSymbol, setNewSymbol] = useState('')
   const [newShares, setNewShares] = useState('')
   const [newCost, setNewCost] = useState('')
   const [newTrail, setNewTrail] = useState('8')
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const fetchPrices = useCallback(async () => {
-    if (holdings.length === 0) return
+  // Show upgrade banner if returning from Stripe
+  useEffect(() => {
+    if (params.get('upgraded') === '1') {
+      router.replace('/dashboard')
+    }
+  }, [params, router])
+
+  // ─── Fetch live prices ────────────────────────────────────────────────────
+  const fetchPrices = useCallback(async (syms: string[]) => {
+    if (!syms.length) return
     setPriceLoading(true)
-    const symbols = holdings.map(h => h.symbol).join(',')
+    const symbols = [...new Set(syms)].join(',')
     try {
-      const res = await fetch(`/api/finnhub?symbols=${symbols}`)
-      const data = await res.json()
-      if (data.prices) setPrices(data.prices)
-    } catch {
-      // silent fail
-    } finally {
+      const res = await fetch(`/api/finnhub?symbols=${encodeURIComponent(symbols)}`)
+      if (!res.ok) return
+      const data: PriceMap = await res.json()
+      setPrices(prev => ({ ...prev, ...data }))
+    } catch { /* silent */ } finally {
       setPriceLoading(false)
     }
-  }, [holdings])
+  }, [])
 
   useEffect(() => {
-    fetchPrices()
-    const interval = setInterval(fetchPrices, 60_000)
+    const symbols = holdings.map(h => h.symbol)
+    if (symbols.length) fetchPrices(symbols)
+    const interval = setInterval(() => {
+      if (symbols.length) fetchPrices(symbols)
+    }, 30_000)
     return () => clearInterval(interval)
-  }, [fetchPrices])
+  }, [holdings, fetchPrices])
 
+  // ─── Add holding ──────────────────────────────────────────────────────────
   async function addHolding() {
-    if (!newSym || !newShares || !newCost) return
-    setLoading(true)
+    setFormError('')
+    if (!newSymbol || !newShares || !newCost) { setFormError('All fields required'); return }
+    if (isNaN(Number(newShares)) || Number(newShares) <= 0) { setFormError('Shares must be a positive number'); return }
+    if (isNaN(Number(newCost)) || Number(newCost) <= 0) { setFormError('Cost basis must be a positive number'); return }
+    setSaving(true)
     const res = await fetch('/api/holdings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        symbol: newSym.toUpperCase().trim(),
+        symbol: newSymbol.toUpperCase().trim(),
         shares: parseFloat(newShares),
         cost_basis: parseFloat(newCost),
         trail_pct: parseFloat(newTrail) || 8,
       }),
     })
     const data = await res.json()
-    if (data.error) {
-      alert(data.error)
-    } else {
-      setHoldings(prev => [...prev, data.holding ?? data])
-      setShowAdd(false)
-      setNewSym(''); setNewShares(''); setNewCost(''); setNewTrail('8')
+    if (!res.ok) {
+      if (res.status === 403) setShowUpgrade(true)
+      else setFormError(data.error ?? 'Failed to save')
+      setSaving(false)
+      return
     }
-    setLoading(false)
+    setHoldings(prev => [...prev, data])
+    setNewSymbol(''); setNewShares(''); setNewCost(''); setNewTrail('8')
+    setShowAddForm(false)
+    fetchPrices([data.symbol])
+    setSaving(false)
   }
 
+  // ─── Remove holding ───────────────────────────────────────────────────────
   async function removeHolding(id: string) {
     await fetch(`/api/holdings?id=${id}`, { method: 'DELETE' })
     setHoldings(prev => prev.filter(h => h.id !== id))
   }
 
+  // ─── Sign out ─────────────────────────────────────────────────────────────
   async function signOut() {
-    setSigningOut(true)
     await supabase.auth.signOut()
     router.push('/auth/login')
-    router.refresh()
   }
 
-  async function startUpgrade(plan: string) {
-    try {
-      const res = await fetch(`/api/stripe/checkout?plan=${plan}`)
-      const text = await res.text()
-      console.log('checkout status:', res.status, 'body:', text)
-      if (!text) { alert('Empty response from server - check console'); return }
-      const data = JSON.parse(text)
-      if (data.url) window.location.href = data.url
-      else alert('Error: ' + (data.error ?? 'No URL returned'))
-    } catch (e) {
-      alert('Checkout failed: ' + e)
-      console.error(e)
-    }
+  // ─── Tab click ───────────────────────────────────────────────────────────
+  function handleTabClick(tab: string) {
+    if (tab !== 'Tracker' && plan === 'free') { setShowUpgrade(true); return }
+    setActiveTab(tab)
   }
 
-  async function openPortal() {
-    const res = await fetch('/api/stripe/portal')
-    const { url } = await res.json()
-    if (url) window.location.href = url
-  }
-
-  const totalValue = holdings.reduce((sum, h) => {
-    const p = prices[h.symbol]?.price ?? Number(h.cost_basis)
-    return sum + p * Number(h.shares)
-  }, 0)
-
-  const totalCost = holdings.reduce((sum, h) => sum + Number(h.cost_basis) * Number(h.shares), 0)
-  const totalGain = totalValue - totalCost
-  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0
-  const atLimit = !isPro && holdings.length >= FREE_LIMIT
+  // ─── Derived portfolio metrics ────────────────────────────────────────────
+  const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
+  const totalCost  = holdings.reduce((s, h) => s + h.cost_basis * h.shares, 0)
+  const totalGain  = totalValue - totalCost
+  const totalPct   = totalCost ? (totalGain / totalCost) * 100 : 0
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <span style={s.logo}>Portfolio Pro</span>
-        <div style={s.headerRight}>
-          {isPro ? (
-            <span style={s.proBadge}>PRO</span>
-          ) : (
-            <button onClick={() => setUpgradeOpen(true)} style={s.upgradeBtnSmall}>Upgrade</button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
+
+      {/* ── Header ── */}
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{
+            width: 22, height: 22, background: 'var(--accent)', borderRadius: 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 800, fontSize: 13,
+          }}>S</span>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio</span>
+          {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>↻</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 3,
+            background: plan === 'pro' ? 'var(--accent)' : 'var(--surface-2)',
+            color: plan === 'pro' ? '#fff' : 'var(--muted)',
+            letterSpacing: '0.05em',
+          }}>{plan.toUpperCase()}</span>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{email}</span>
+          {plan === 'free' && (
+            <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 13, padding: '6px 14px' }}>
+              Upgrade
+            </button>
           )}
-          <span style={s.email}>{userEmail}</span>
-          {isPro && (
-            <button onClick={openPortal} style={s.ghostBtn}>Manage plan</button>
+          {plan === 'pro' && (
+            <button className="btn-outline" onClick={() => fetch('/api/stripe/portal').then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })} style={{ fontSize: 13 }}>
+              Manage Plan
+            </button>
           )}
-          <button onClick={signOut} disabled={signingOut} style={s.ghostBtn}>
-            {signingOut ? 'Signing out...' : 'Sign out'}
-          </button>
+          <button className="btn-outline" onClick={signOut} style={{ fontSize: 13 }}>Sign out</button>
         </div>
       </header>
 
-      <main style={s.main}>
-        <div style={s.cards}>
-          <div style={s.card}>
-            <div style={s.cardLabel}>Portfolio Value</div>
-            <div style={s.cardValue}>${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div style={s.card}>
-            <div style={s.cardLabel}>Total Cost</div>
-            <div style={s.cardValue}>${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div style={s.card}>
-            <div style={s.cardLabel}>Total Gain/Loss</div>
-            <div style={{ ...s.cardValue, color: totalGain >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              {totalGain >= 0 ? '+' : ''}${totalGain.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              {' '}({totalGainPct >= 0 ? '+' : ''}{totalGainPct.toFixed(2)}%)
-            </div>
-          </div>
-          <div style={s.card}>
-            <div style={s.cardLabel}>Positions</div>
-            <div style={s.cardValue}>{holdings.length}{!isPro ? ` / ${FREE_LIMIT}` : ''}</div>
-          </div>
+      {/* ── Free plan banner ── */}
+      {plan === 'free' && (
+        <div style={{ background: 'var(--accent-tint)', borderBottom: '1px solid var(--border)', padding: '8px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>
+            Free plan · {holdings.length}/{FREE_LIMIT} holdings · Pro tabs locked
+          </span>
+          <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 12, padding: '4px 14px' }}>
+            Upgrade to Pro →
+          </button>
         </div>
+      )}
 
-        {!isPro && (
-          <div style={s.freeBanner}>
-            <span>Free plan - up to {FREE_LIMIT} holdings, basic tracker only.</span>
-            <button onClick={() => setUpgradeOpen(true)} style={s.upgradeLink}>Upgrade to Pro</button>
-          </div>
+      {/* ── Tabs ── */}
+      <nav style={{ display: 'flex', gap: 22, padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', overflowX: 'auto', flexShrink: 0 }}>
+        {ALL_TABS.map(tab => {
+          const locked = tab !== 'Tracker' && plan === 'free'
+          const active = activeTab === tab
+          return (
+            <button key={tab} onClick={() => handleTabClick(tab)} style={{
+              padding: '13px 2px', borderRadius: 0, fontSize: 13, background: 'transparent',
+              color: active ? 'var(--text)' : 'var(--muted)',
+              borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+              opacity: locked ? 0.55 : 1,
+              whiteSpace: 'nowrap',
+              fontWeight: active ? 700 : 600,
+              letterSpacing: '0.01em',
+            }}>
+              {locked ? '🔒 ' : ''}{tab}
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* ── Main content ── */}
+      <main style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+
+        {activeTab === 'Tracker' && (
+          <TrackerTab
+            holdings={holdings} prices={prices} plan={plan}
+            totalValue={totalValue} totalCost={totalCost} totalGain={totalGain} totalPct={totalPct}
+            onAdd={() => {
+              if (plan === 'free' && holdings.length >= FREE_LIMIT) { setShowUpgrade(true); return }
+              setShowAddForm(true)
+            }}
+            onRemove={removeHolding}
+            showAddForm={showAddForm} onCancelAdd={() => { setShowAddForm(false); setFormError('') }}
+            newSymbol={newSymbol} setNewSymbol={setNewSymbol}
+            newShares={newShares} setNewShares={setNewShares}
+            newCost={newCost} setNewCost={setNewCost}
+            newTrail={newTrail} setNewTrail={setNewTrail}
+            formError={formError} saving={saving} onSave={addHolding} freeLimit={FREE_LIMIT}
+          />
         )}
 
-        <div style={s.section}>
-          <div style={s.sectionHeader}>
-            <h2 style={s.sectionTitle}>Holdings</h2>
-            <div style={s.headerActions}>
-              {priceLoading && <span style={s.muted}>Refreshing prices...</span>}
-              <button onClick={fetchPrices} style={s.ghostBtn}>Refresh</button>
-              {!atLimit
-                ? <button onClick={() => setShowAdd(v => !v)} style={s.primaryBtn}>+ Add</button>
-                : <button onClick={() => setUpgradeOpen(true)} style={s.primaryBtn}>Add (upgrade)</button>
-              }
-            </div>
-          </div>
-
-          {showAdd && (
-            <div style={s.addForm}>
-              <input placeholder="AAPL" value={newSym} onChange={e => setNewSym(e.target.value)} style={s.addInput} />
-              <input placeholder="Shares" type="number" value={newShares} onChange={e => setNewShares(e.target.value)} style={s.addInput} />
-              <input placeholder="Cost basis / share" type="number" value={newCost} onChange={e => setNewCost(e.target.value)} style={s.addInput} />
-              <input placeholder="Trail %" type="number" value={newTrail} onChange={e => setNewTrail(e.target.value)} style={{ ...s.addInput, width: 80 }} />
-              <button onClick={addHolding} disabled={loading} style={s.primaryBtn}>
-                {loading ? 'Saving...' : 'Save'}
-              </button>
-              <button onClick={() => setShowAdd(false)} style={s.ghostBtn}>Cancel</button>
-            </div>
-          )}
-
-          {holdings.length === 0 ? (
-            <div style={s.empty}>No holdings yet. Add your first position above.</div>
-          ) : (
-            <div style={s.tableWrap}>
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    {['Symbol', 'Shares', 'Cost Basis', 'Curr. Price', 'Mkt Value', 'Gain/Loss', 'G/L %', 'Trail %', 'Stop Price', ''].map(h => (
-                      <th key={h} style={s.th}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {holdings.map(h => {
-                    const shares = Number(h.shares)
-                    const costBasis = Number(h.cost_basis)
-                    const trailPct = Number(h.trail_pct)
-                    const p = prices[h.symbol]
-                    const currPrice = p?.price ?? null
-                    const mktValue = currPrice != null ? currPrice * shares : null
-                    const cost = costBasis * shares
-                    const gain = mktValue != null ? mktValue - cost : null
-                    const gainPct = gain != null && cost > 0 ? (gain / cost) * 100 : null
-                    const stopPrice = currPrice != null ? currPrice * (1 - trailPct / 100) : null
-                    const isPos = gain != null && gain >= 0
-                    return (
-                      <tr key={h.id} style={s.tr}>
-                        <td style={{ ...s.td, fontWeight: 600 }}>{h.symbol}</td>
-                        <td style={s.td}>{shares}</td>
-                        <td style={s.td}>${costBasis.toFixed(2)}</td>
-                        <td style={s.td}>{currPrice != null ? `$${currPrice.toFixed(2)}` : '-'}</td>
-                        <td style={s.td}>{mktValue != null ? `$${mktValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
-                        <td style={{ ...s.td, color: gain != null ? (isPos ? 'var(--green)' : 'var(--red)') : undefined }}>
-                          {gain != null ? `${isPos ? '+' : ''}$${gain.toFixed(2)}` : '-'}
-                        </td>
-                        <td style={{ ...s.td, color: gainPct != null ? (gainPct >= 0 ? 'var(--green)' : 'var(--red)') : undefined }}>
-                          {gainPct != null ? `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%` : '-'}
-                        </td>
-                        <td style={s.td}>{trailPct}%</td>
-                        <td style={{ ...s.td, color: 'var(--accent)' }}>
-                          {stopPrice != null ? `$${stopPrice.toFixed(2)}` : '-'}
-                        </td>
-                        <td style={s.td}>
-                          <button onClick={() => removeHolding(h.id)} style={s.removeBtn}>x</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {!isPro && (
-          <div style={s.proSection}>
-            <h2 style={s.sectionTitle}>Pro Features</h2>
-            <div style={s.proGrid}>
-              {['Daily Ranking', 'Signals', 'Optimizer', 'Strategy / Kelly', 'Charts', 'Fundamentals', 'Stop-loss Manager'].map(f => (
-                <div key={f} style={s.proCard} onClick={() => setUpgradeOpen(true)}>
-                  <span>🔒</span>
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {activeTab === 'Quality Ranking' && plan === 'pro' && (
+          <DailyRankingTab holdings={holdings} prices={prices} />
         )}
+
+        {activeTab === 'Signals' && plan === 'pro' && (
+          <SignalsTab holdings={holdings} prices={prices} />
+        )}
+
+        {activeTab === 'Allocation View' && plan === 'pro' && (
+          <OptimizerTab holdings={holdings} prices={prices} totalValue={totalValue} />
+        )}
+
+        {activeTab === 'Concentration' && plan === 'pro' && (
+          <ConcentrationTab holdings={holdings} prices={prices} totalValue={totalValue} />
+        )}
+
+        {activeTab === 'Charts' && plan === 'pro' && (
+          <ChartsTab holdings={holdings} prices={prices} />
+        )}
+
+        {activeTab === 'Fundamentals' && plan === 'pro' && (
+          <FundamentalsTab holdings={holdings} />
+        )}
+
+        {activeTab === 'Drawdown Alerts' && plan === 'pro' && (
+          <StopLossTab holdings={holdings} prices={prices} />
+        )}
+
       </main>
 
-      {upgradeOpen && (
-        <div style={s.modalOverlay} onClick={() => setUpgradeOpen(false)}>
-          <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={s.modalTitle}>Upgrade to Pro</h2>
-            <p style={s.modalSub}>Unlock unlimited holdings and all advanced features.</p>
-            <div style={s.pricingCards}>
-              <div style={s.pricingCard}>
-                <div style={s.pricingLabel}>Monthly</div>
-                <div style={s.pricingPrice}>$9<span style={s.pricingPer}>/mo</span></div>
-                <button onClick={() => startUpgrade('monthly')} style={s.primaryBtn}>
-                  Subscribe monthly
-                </button>
+      <DisclaimerFooter dense />
+
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+    </div>
+  )
+}
+
+// ─── Tracker Tab ──────────────────────────────────────────────────────────────
+function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit }: {
+  holdings: Holding[]; prices: PriceMap; plan: Plan
+  totalValue: number; totalCost: number; totalGain: number; totalPct: number
+  onAdd: () => void; onRemove: (id: string) => void
+  showAddForm: boolean; onCancelAdd: () => void
+  newSymbol: string; setNewSymbol: (v: string) => void
+  newShares: string; setNewShares: (v: string) => void
+  newCost: string; setNewCost: (v: string) => void
+  newTrail: string; setNewTrail: (v: string) => void
+  formError: string; saving: boolean; onSave: () => void; freeLimit: number
+}) {
+  return (
+    <div>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+        {[
+          { label: 'Portfolio Value', value: `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
+          { label: 'Total Cost Basis', value: `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
+          { label: 'Total Gain / Loss', value: `${totalGain >= 0 ? '+' : ''}$${totalGain.toFixed(2)} (${totalPct.toFixed(2)}%)`, color: totalGain >= 0 ? 'var(--green)' : 'var(--red)' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Holdings table */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+              {['Symbol', 'Shares', 'Cost / Share', 'Current Price', 'Value', 'Gain / Loss', 'Trail Stop', ''].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--muted)' }}>
+                No holdings yet. Add your first position below.
+              </td></tr>
+            )}
+            {holdings.map(h => {
+              const price = prices[h.symbol] ?? null
+              const value = price != null ? price * h.shares : null
+              const gain  = value != null ? value - h.cost_basis * h.shares : null
+              const pct   = gain != null && h.cost_basis ? (gain / (h.cost_basis * h.shares)) * 100 : null
+              const stopPrice = price != null ? price * (1 - h.trail_pct / 100) : null
+              const atRisk = stopPrice != null && h.cost_basis > stopPrice
+
+              return (
+                <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}>{h.symbol}</td>
+                  <td style={{ padding: '12px 16px' }}>{h.shares.toLocaleString()}</td>
+                  <td style={{ padding: '12px 16px' }}>${h.cost_basis.toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px' }}>{price != null ? `$${price.toFixed(2)}` : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{value != null ? `$${value.toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '12px 16px', color: gain == null ? 'var(--muted)' : gain >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                    {gain != null && pct != null ? `${gain >= 0 ? '+' : ''}$${gain.toFixed(2)} (${pct.toFixed(1)}%)` : '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ color: atRisk ? 'var(--red)' : 'var(--muted)', fontWeight: atRisk ? 700 : 400 }}>
+                      {h.trail_pct}%{stopPrice != null ? ` → $${stopPrice.toFixed(2)}` : ''}
+                      {atRisk && ' ⚠️'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <button onClick={() => onRemove(h.id)} style={{ background: 'transparent', color: 'var(--red)', padding: '3px 9px', border: '1px solid var(--red)', borderRadius: 4, fontSize: 12 }}>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add holding form */}
+      {showAddForm ? (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 560 }}>
+          <h3 style={{ marginBottom: 18, fontSize: 15, fontWeight: 600 }}>Add Holding</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {[
+              { label: 'Ticker Symbol', value: newSymbol, set: setNewSymbol, placeholder: 'AAPL', upper: true },
+              { label: 'Shares', value: newShares, set: setNewShares, placeholder: '10' },
+              { label: 'Cost Basis (per share)', value: newCost, set: setNewCost, placeholder: '150.00' },
+              { label: 'Trailing Stop %', value: newTrail, set: setNewTrail, placeholder: '8' },
+            ].map(({ label, value, set, placeholder, upper }) => (
+              <div key={label}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 5, fontWeight: 500 }}>{label}</label>
+                <input
+                  value={value}
+                  onChange={e => set(upper ? e.target.value.toUpperCase() : e.target.value)}
+                  placeholder={placeholder}
+                  onKeyDown={e => e.key === 'Enter' && onSave()}
+                />
               </div>
-              <div style={{ ...s.pricingCard, border: '1px solid var(--accent)' }}>
-                <div style={{ ...s.pricingLabel, color: 'var(--accent)' }}>Annual - Save 27%</div>
-                <div style={s.pricingPrice}>$79<span style={s.pricingPer}>/yr</span></div>
-                <button onClick={() => startUpgrade('annual')} style={{ ...s.primaryBtn, background: 'var(--accent)' }}>
-                  Subscribe annually
-                </button>
-              </div>
-            </div>
-            <button onClick={() => setUpgradeOpen(false)} style={s.ghostBtn}>Maybe later</button>
+            ))}
+          </div>
+          {formError && <p style={{ color: 'var(--red)', fontSize: 13, marginTop: 10 }}>{formError}</p>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button className="btn-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Add Holding'}</button>
+            <button className="btn-outline" onClick={onCancelAdd}>Cancel</button>
           </div>
         </div>
+      ) : (
+        <button
+          className="btn-primary"
+          onClick={onAdd}
+          disabled={plan === 'free' && holdings.length >= freeLimit}
+          style={{ padding: '9px 20px' }}
+        >
+          + Add Holding{plan === 'free' ? ` (${holdings.length}/${freeLimit})` : ''}
+        </button>
       )}
     </div>
   )
 }
 
-const s: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 10 },
-  logo: { fontWeight: 700, fontSize: 18, color: 'var(--accent)' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
-  email: { color: 'var(--muted)', fontSize: 13 },
-  proBadge: { background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 11, borderRadius: 4, padding: '2px 7px', letterSpacing: '0.05em' },
-  main: { flex: 1, padding: '32px 24px', maxWidth: 1200, margin: '0 auto', width: '100%' },
-  cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 },
-  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 20px' },
-  cardLabel: { color: 'var(--muted)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 },
-  cardValue: { fontSize: 22, fontWeight: 700 },
-  freeBanner: { display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', background: '#1c1a10', border: '1px solid #4a4000', borderRadius: 8, padding: '12px 16px', marginBottom: 24, fontSize: 14, color: '#d4b400' },
-  section: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, marginBottom: 24 },
-  sectionHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: 600 },
-  headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
-  muted: { color: 'var(--muted)', fontSize: 13 },
-  addForm: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, padding: 16, background: 'var(--bg)', borderRadius: 8 },
-  addInput: { flex: 1, minWidth: 100 },
-  tableWrap: { overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
-  th: { textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 12, padding: '8px 12px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' },
-  tr: { transition: 'background 0.1s' },
-  removeBtn: { color: 'var(--muted)', fontSize: 14, padding: '2px 6px', borderRadius: 4, background: 'transparent', border: 'none', cursor: 'pointer' },
-  empty: { color: 'var(--muted)', textAlign: 'center', padding: '40px 0', fontSize: 14 },
-  proSection: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 24 },
-  proGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginTop: 16 },
-  proCard: { display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: 'var(--muted)' },
-  primaryBtn: { padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 6, fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer' },
-  ghostBtn: { padding: '7px 14px', background: 'transparent', color: 'var(--muted)', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', cursor: 'pointer' },
-  upgradeBtnSmall: { padding: '5px 12px', background: 'var(--accent)', color: '#fff', borderRadius: 6, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' },
-  upgradeLink: { background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0 },
-  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 },
-  modal: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 32, maxWidth: 500, width: '100%' },
-  modalTitle: { fontSize: 22, fontWeight: 700, marginBottom: 8 },
-  modalSub: { color: 'var(--muted)', marginBottom: 24, fontSize: 14 },
-  pricingCards: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
-  pricingCard: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 },
-  pricingLabel: { fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' },
-  pricingPrice: { fontSize: 28, fontWeight: 800 },
-  pricingPer: { fontSize: 14, fontWeight: 400, color: 'var(--muted)' },
+// ─── Daily Ranking Tab ────────────────────────────────────────────────────────
+function DailyRankingTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const ranked = [...holdings]
+    .map(h => {
+      const price = prices[h.symbol]
+      const gain = price ? (price - h.cost_basis) / h.cost_basis * 100 : null
+      const value = price ? price * h.shares : h.cost_basis * h.shares
+      return { ...h, price, gain, value }
+    })
+    .sort((a, b) => (b.gain ?? -Infinity) - (a.gain ?? -Infinity))
+
+  return (
+    <ProTabShell title="Quality Ranking" description="Your holdings sorted by return performance — a data view, not a buy list.">
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+              {['Rank', 'Symbol', 'Current Price', 'Cost Basis', 'Return %', 'Market Value'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Add holdings in the Tracker tab to see rankings.</td></tr>
+            )}
+            {ranked.map((h, i) => (
+              <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '12px 16px', color: 'var(--muted)', fontWeight: 700 }}>#{i + 1}</td>
+                <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}>{h.symbol}</td>
+                <td style={{ padding: '12px 16px' }}>{h.price ? `$${h.price.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px' }}>${h.cost_basis.toFixed(2)}</td>
+                <td style={{ padding: '12px 16px', fontWeight: 700, color: h.gain == null ? 'var(--muted)' : h.gain >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {h.gain != null ? `${h.gain >= 0 ? '+' : ''}${h.gain.toFixed(2)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px' }}>${h.value.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ProTabShell>
+  )
+}
+
+// ─── Signals Tab ──────────────────────────────────────────────────────────────
+// Describes what changed in a position (price vs. cost basis, proximity to your
+// trailing-stop threshold). Deliberately does NOT output buy/sell/hold verdicts —
+// see the repositioning note: this is a data view for long-term owners, not a
+// trade-timing tool.
+function SignalsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  type SignalState = 'NEAR_STOP' | 'DOWN' | 'UP_STRONG' | 'UP' | 'NO_DATA'
+
+  function getSignal(h: Holding, price: number | undefined): { state: SignalState; label: string; reason: string } {
+    if (!price) return { state: 'NO_DATA', label: 'NO DATA', reason: 'Awaiting price data' }
+    const ret = (price - h.cost_basis) / h.cost_basis * 100
+    const stopPrice = price * (1 - h.trail_pct / 100)
+    if (h.cost_basis > stopPrice) return { state: 'NEAR_STOP', label: 'NEAR TRAILING-STOP', reason: `Price is near your trailing-stop threshold ($${stopPrice.toFixed(2)})` }
+    if (ret < -15) return { state: 'DOWN', label: 'DOWN', reason: `Down ${ret.toFixed(1)}% from cost basis` }
+    if (ret > 30) return { state: 'UP_STRONG', label: 'UP STRONG', reason: `Up ${ret.toFixed(1)}% from cost basis` }
+    if (ret >= 0) return { state: 'UP', label: 'UP', reason: `Up ${ret.toFixed(1)}% — within normal range` }
+    return { state: 'DOWN', label: 'DOWN', reason: `Down ${ret.toFixed(1)}% from cost basis` }
+  }
+
+  const stateColor = { NEAR_STOP: 'var(--yellow)', DOWN: 'var(--red)', UP_STRONG: 'var(--green)', UP: 'var(--accent)', NO_DATA: 'var(--muted)' }
+
+  return (
+    <ProTabShell title="Signals" description="Fundamental and valuation changes in the companies you own — not trade calls.">
+      <div style={{ display: 'grid', gap: 12 }}>
+        {holdings.length === 0 && <EmptyState />}
+        {holdings.map(h => {
+          const { state, label, reason } = getSignal(h, prices[h.symbol])
+          return (
+            <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid var(--border)`, borderLeft: `4px solid ${stateColor[state]}`, borderRadius: 8, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{h.symbol}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>{reason}</div>
+              </div>
+              <div style={{ background: stateColor[state], color: '#fff', fontWeight: 800, fontSize: 12, padding: '5px 14px', borderRadius: 3, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>
+                {label}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
+        ⚠️ These describe what's changed in a position — they are not buy, sell, or hold instructions. Always do your own research.
+      </p>
+    </ProTabShell>
+  )
+}
+
+// ─── Optimizer Tab ────────────────────────────────────────────────────────────
+function OptimizerTab({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
+  const withWeights = holdings.map(h => {
+    const value = (prices[h.symbol] ?? h.cost_basis) * h.shares
+    const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
+    const ret = prices[h.symbol] ? (prices[h.symbol] - h.cost_basis) / h.cost_basis * 100 : 0
+    return { ...h, value, weight, ret }
+  })
+
+  const topHeavy = withWeights.filter(h => h.weight > 25)
+  const underweight = withWeights.filter(h => h.weight < 5 && holdings.length > 4)
+
+  return (
+    <ProTabShell title="Allocation View" description="How your holdings compare to the targets you set. You choose the targets — this just shows the math.">
+      {/* Weight chart */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '20px 24px', marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Portfolio Allocation</h3>
+        {holdings.length === 0 ? <EmptyState /> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {withWeights.sort((a, b) => b.weight - a.weight).map(h => (
+              <div key={h.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{h.symbol}</span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{h.weight.toFixed(1)}% · ${h.value.toFixed(0)}</span>
+                </div>
+                <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                  <div style={{ width: `${h.weight}%`, height: '100%', background: h.weight > 25 ? 'var(--red)' : 'var(--accent)', borderRadius: 4, transition: 'width .3s' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Notes — descriptive only, not instructions */}
+      {(topHeavy.length > 0 || underweight.length > 0) && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600 }}>Allocation Notes</h3>
+          {topHeavy.map(h => (
+            <Callout key={h.id} type="warning" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
+              This is above the common 25% concentration marker some long-term investors watch.
+            </Callout>
+          ))}
+          {underweight.map(h => (
+            <Callout key={h.id} type="info" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
+              A small position relative to the rest of your holdings.
+            </Callout>
+          ))}
+        </div>
+      )}
+    </ProTabShell>
+  )
+}
+
+// ─── Concentration Tab ────────────────────────────────────────────────────────
+// Replaces the former Kelly-criterion position-sizing tool. That tool computed a
+// "recommended" position size from an assumed win probability — which functions
+// like personalized position-sizing advice and doesn't fit long-term, conviction-
+// based ownership. This tab only shows a fact: how much of the portfolio each
+// holding currently represents. No formula, no recommended size.
+function ConcentrationTab({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
+  const withWeight = holdings.map(h => {
+    const price = prices[h.symbol]
+    const value = (price ?? h.cost_basis) * h.shares
+    const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
+    const ret = price ? (price - h.cost_basis) / h.cost_basis * 100 : null
+    return { ...h, price, value, weight, ret }
+  }).sort((a, b) => b.weight - a.weight)
+
+  return (
+    <ProTabShell title="Concentration" description="How much of your portfolio each holding represents — a fact, not a formula telling you what to buy.">
+      <div style={{ display: 'grid', gap: 12 }}>
+        {holdings.length === 0 && <EmptyState />}
+        {withWeight.map(h => (
+          <div key={h.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{h.symbol}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>${h.value.toFixed(0)} market value</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Return since purchase</div>
+                <div style={{ fontWeight: 700, color: h.ret == null ? 'var(--muted)' : h.ret >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {h.ret != null ? `${h.ret >= 0 ? '+' : ''}${h.ret.toFixed(1)}%` : '—'}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Share of portfolio</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>{h.weight.toFixed(1)}%</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
+        This is a description of your current holdings, not a recommendation for how to size any position.
+      </p>
+    </ProTabShell>
+  )
+}
+
+// ─── Charts Tab ───────────────────────────────────────────────────────────────
+function ChartsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
+
+  return (
+    <ProTabShell title="Charts" description="Visual breakdown of your portfolio composition and performance.">
+      {holdings.length === 0 ? <EmptyState /> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+          {/* Allocation donut-style bar */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Allocation by Symbol</h3>
+            <AllocationBar holdings={holdings} prices={prices} totalValue={totalValue} />
+          </div>
+
+          {/* Gain/Loss bar chart */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Gain / Loss by Position</h3>
+            <GainLossChart holdings={holdings} prices={prices} />
+          </div>
+        </div>
+      )}
+    </ProTabShell>
+  )
+}
+
+function AllocationBar({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
+  const colors = ['var(--accent)', 'var(--green)', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316']
+  const sorted = [...holdings].map(h => ({
+    symbol: h.symbol,
+    value: (prices[h.symbol] ?? h.cost_basis) * h.shares,
+    pct: totalValue > 0 ? ((prices[h.symbol] ?? h.cost_basis) * h.shares / totalValue) * 100 : 0,
+  })).sort((a, b) => b.value - a.value)
+
+  return (
+    <div>
+      <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+        {sorted.map((h, i) => (
+          <div key={h.symbol} style={{ width: `${h.pct}%`, background: colors[i % colors.length], transition: 'width .3s' }} title={`${h.symbol}: ${h.pct.toFixed(1)}%`} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {sorted.map((h, i) => (
+          <div key={h.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: colors[i % colors.length], flexShrink: 0 }} />
+            <span style={{ color: 'var(--muted)' }}>{h.symbol} {h.pct.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const data = holdings.map(h => {
+    const price = prices[h.symbol]
+    const ret = price ? (price - h.cost_basis) / h.cost_basis * 100 : 0
+    return { symbol: h.symbol, ret }
+  }).sort((a, b) => b.ret - a.ret)
+
+  const maxAbs = Math.max(...data.map(d => Math.abs(d.ret)), 1)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {data.map(d => (
+        <div key={d.symbol}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{d.symbol}</span>
+            <span style={{ fontSize: 12, color: d.ret >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+              {d.ret >= 0 ? '+' : ''}{d.ret.toFixed(2)}%
+            </span>
+          </div>
+          <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+            <div style={{
+              width: `${(Math.abs(d.ret) / maxAbs) * 100}%`,
+              height: '100%',
+              background: d.ret >= 0 ? 'var(--green)' : 'var(--red)',
+              borderRadius: 4,
+            }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Fundamentals Tab ─────────────────────────────────────────────────────────
+function FundamentalsTab({ holdings }: { holdings: Holding[] }) {
+  return (
+    <ProTabShell title="Fundamentals" description="Key fundamental metrics for your holdings. Data sourced from Finnhub.">
+      {holdings.length === 0 ? <EmptyState /> : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {holdings.map(h => (
+            <FundamentalsCard key={h.id} symbol={h.symbol} />
+          ))}
+        </div>
+      )}
+    </ProTabShell>
+  )
+}
+
+interface Fundamentals {
+  symbol: string
+  name: string | null
+  industry: string | null
+  marketCap: number | null   // millions USD
+  peRatio: number | null
+  week52High: number | null
+  week52Low: number | null
+  beta: number | null
+}
+
+function FundamentalsCard({ symbol }: { symbol: string }) {
+  const [data, setData] = useState<Fundamentals | null>(null)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(false)
+    fetch(`/api/finnhub?type=fundamentals&symbol=${encodeURIComponent(symbol)}`)
+      .then(res => {
+        if (!res.ok) throw new Error('failed')
+        return res.json()
+      })
+      .then((d: Fundamentals) => { if (!cancelled) setData(d) })
+      .catch(() => { if (!cancelled) setError(true) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [symbol])
+
+  function fmtMarketCap(m: number | null) {
+    if (m == null) return '—'
+    if (m >= 1_000_000) return `$${(m / 1_000_000).toFixed(2)}T`
+    if (m >= 1_000) return `$${(m / 1_000).toFixed(2)}B`
+    return `$${m.toFixed(0)}M`
+  }
+
+  const rows = data ? [
+    ['Market Cap', fmtMarketCap(data.marketCap)],
+    ['P/E Ratio', data.peRatio != null ? data.peRatio.toFixed(2) : '—'],
+    ['52W High', data.week52High != null ? `$${data.week52High.toFixed(2)}` : '—'],
+    ['52W Low', data.week52Low != null ? `$${data.week52Low.toFixed(2)}` : '—'],
+    ['Beta', data.beta != null ? data.beta.toFixed(2) : '—'],
+  ] : []
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 16 }}>{symbol}</div>
+        {data?.name && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{data.name}{data.industry ? ` · ${data.industry}` : ''}</div>}
+      </div>
+      {loading ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
+      ) : error ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Couldn't load fundamentals for {symbol}.</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+          {rows.map(([k, v]) => (
+            <div key={k}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>{k}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
+        Data from Finnhub · Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
+      </p>
+    </div>
+  )
+}
+
+// ─── Stop-loss Tab ────────────────────────────────────────────────────────────
+function StopLossTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const withStop = holdings.map(h => {
+    const price = prices[h.symbol]
+    const stopPrice = price ? price * (1 - h.trail_pct / 100) : null
+    const triggered = stopPrice != null && h.cost_basis > stopPrice
+    const distancePct = price ? ((price - (stopPrice ?? 0)) / price) * 100 : null
+    return { ...h, price, stopPrice, triggered, distancePct }
+  }).sort((a, b) => (a.distancePct ?? 999) - (b.distancePct ?? 999))
+
+  const triggered = withStop.filter(h => h.triggered)
+
+  return (
+    <ProTabShell title="Drawdown Alerts" description="See when a holding is down from its trailing-stop level. Informational only — no action is implied or recommended.">
+      {triggered.length > 0 && (
+        <Callout type="danger" title={`${triggered.length} position${triggered.length > 1 ? 's' : ''} at or below your trailing-stop threshold`}>
+          {triggered.map(h => h.symbol).join(', ')} — shown for your awareness, not as an instruction to act.
+        </Callout>
+      )}
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginTop: triggered.length ? 16 : 0 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+              {['Symbol', 'Current Price', 'Trail %', 'Stop Price', 'Distance to Stop', 'Status'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>No holdings to monitor.</td></tr>
+            )}
+            {withStop.map(h => (
+              <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: h.triggered ? 'var(--red-tint)' : 'transparent' }}>
+                <td style={{ padding: '12px 16px', fontWeight: 700 }}>{h.symbol}</td>
+                <td style={{ padding: '12px 16px' }}>{h.price ? `$${h.price.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px' }}>{h.trail_pct}%</td>
+                <td style={{ padding: '12px 16px', fontWeight: 600 }}>{h.stopPrice ? `$${h.stopPrice.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px', color: h.distancePct != null && h.distancePct < 5 ? 'var(--red)' : 'var(--green)' }}>
+                  {h.distancePct != null ? `${h.distancePct.toFixed(1)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 3, letterSpacing: '0.03em', textTransform: 'uppercase',
+                    background: h.triggered ? 'var(--red)' : 'var(--green-tint)',
+                    color: h.triggered ? '#fff' : 'var(--green)',
+                  }}>
+                    {h.triggered ? 'Triggered' : 'Safe'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ProTabShell>
+  )
+}
+
+// ─── Upgrade Modal ────────────────────────────────────────────────────────────
+function UpgradeModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState<string | null>(null)
+
+  async function startCheckout(plan: 'monthly' | 'annual') {
+    setLoading(plan)
+    const res = await fetch(`/api/stripe/checkout?plan=${plan}`)
+    const data = await res.json()
+    if (data.url) window.location.href = data.url
+    else setLoading(null)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '36px 32px', width: '100%', maxWidth: 500, position: 'relative' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'transparent', color: 'var(--muted)', fontSize: 22, padding: '0 6px', lineHeight: 1 }}>×</button>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>✦</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Upgrade to Pro</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
+            Unlock unlimited holdings, all Pro tabs, valuation signals,<br />allocation views, and advanced analytics.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <PlanButton label="Monthly" price="$9 / month" onClick={() => startCheckout('monthly')} loading={loading === 'monthly'} />
+          <PlanButton label="Annual" price="$79 / year" badge="Save 27%" onClick={() => startCheckout('annual')} loading={loading === 'annual'} />
+        </div>
+        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
+          Secure payment via Stripe · Cancel anytime
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function PlanButton({ label, price, badge, onClick, loading }: { label: string; price: string; badge?: string; onClick: () => void; loading: boolean }) {
+  return (
+    <button className="btn-primary" onClick={onClick} disabled={loading} style={{ flex: 1, padding: '16px 0', fontSize: 15, position: 'relative', minWidth: 180 }}>
+      {badge && <span style={{ position: 'absolute', top: -10, right: 10, background: 'var(--yellow)', color: '#000', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 800 }}>{badge}</span>}
+      <div style={{ fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 400, marginTop: 2, opacity: 0.85 }}>{loading ? 'Redirecting…' : price}</div>
+    </button>
+  )
+}
+
+// ─── Shared UI helpers ────────────────────────────────────────────────────────
+function ProTabShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{title}</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14 }}>{description}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+      Add holdings in the Tracker tab to see data here.
+    </div>
+  )
+}
+
+function Callout({ type, title, children }: { type: 'warning' | 'info' | 'danger'; title: string; children: React.ReactNode }) {
+  const colors = { warning: 'var(--yellow)', info: 'var(--accent)', danger: 'var(--red)' }
+  const tints  = { warning: 'var(--yellow-tint)', info: 'var(--accent-tint)', danger: 'var(--red-tint)' }
+  const c = colors[type]
+  return (
+    <div style={{ background: tints[type], border: `1px solid ${c}`, borderLeft: `4px solid ${c}`, borderRadius: 4, padding: '14px 18px' }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: c, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 13, color: 'var(--text)' }}>{children}</div>
+    </div>
+  )
 }
