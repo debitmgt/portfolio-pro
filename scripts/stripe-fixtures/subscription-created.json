@@ -1,0 +1,32 @@
+{
+  "_meta": { "template_version": 0 },
+  "fixtures": [
+    {
+      "name": "test_customer",
+      "path": "/v1/customers",
+      "method": "post",
+      "params": {
+        "email": "webhook-smoke-test@example.com",
+        "name": "Webhook Smoke Test",
+        "source": "tok_visa",
+        "metadata": {
+          "supabase_user_id": "REPLACE_WITH_YOUR_SUPABASE_USER_ID"
+        }
+      }
+    },
+    {
+      "name": "test_subscription",
+      "path": "/v1/subscriptions",
+      "method": "post",
+      "params": {
+        "customer": "${test_customer:id}",
+        "items": [
+          { "price": "REPLACE_WITH_YOUR_STRIPE_MONTHLY_PRICE_ID" }
+        ],
+        "metadata": {
+          "supabase_user_id": "REPLACE_WITH_YOUR_SUPABASE_USER_ID"
+        }
+      }
+    }
+  ]
+}

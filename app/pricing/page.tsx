@@ -1,99 +1,127 @@
+// app/pricing/page.tsx
 import Link from 'next/link'
+import { PLANS } from '@/lib/stripe'
+import DisclaimerFooter from '@/components/DisclaimerFooter'
+import MarketTicker from '@/components/MarketTicker'
 
 export default function PricingPage() {
-  const features = {
-    free: ['Up to 3 holdings', 'Live prices', 'Basic tracker', 'Stop-loss view'],
-    pro: [
-      'Unlimited holdings',
-      'Live prices',
-      'Full tracker',
-      'Daily Ranking',
-      'Signals',
-      'Optimizer',
-      'Strategy / Kelly',
-      'Charts',
-      'Fundamentals',
-      'Stop-loss Manager',
-      'Save & load portfolio',
-    ],
-  }
-
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <Link href="/" style={s.logo}>Portfolio Pro</Link>
-        <Link href="/auth/login" style={s.loginLink}>Sign in</Link>
-      </header>
+    <main style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center',
+      background: 'var(--bg)',
+    }}>
+      <MarketTicker />
+      <div style={{
+        width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: '48px 24px', flex: 1,
+      }}>
+      <div style={{ textAlign: 'center', marginBottom: 52 }}>
+        <div style={{
+          width: 44, height: 44, background: 'var(--accent)', borderRadius: 8,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: 800, fontSize: 22, margin: '0 auto 16px',
+        }}>O</div>
+        <h1 style={{ fontSize: 40, fontWeight: 800, marginBottom: 10, letterSpacing: '-1px' }}>Ownfolio</h1>
+        <p style={{ color: 'var(--muted)', fontSize: 17 }}>
+          Real-time data for long-term owners.
+        </p>
+      </div>
 
-      <main style={s.main}>
-        <h1 style={s.headline}>Simple, transparent pricing</h1>
-        <p style={s.sub}>Start free. Upgrade when you're ready.</p>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
+        <PricingCard
+          name={PLANS.free.name}
+          price="$0"
+          period="forever"
+          features={PLANS.free.features}
+          cta="Get started free"
+          ctaHref="/auth/login"
+          highlight={false}
+        />
+        <PricingCard
+          name={PLANS.monthly.name}
+          price={`$${PLANS.monthly.price}`}
+          period="/ month"
+          features={PLANS.monthly.features}
+          cta="Start Pro Monthly"
+          ctaHref="/auth/login?plan=monthly"
+          highlight
+        />
+        <PricingCard
+          name={PLANS.annual.name}
+          price={`$${PLANS.annual.price}`}
+          period="/ year"
+          features={PLANS.annual.features}
+          cta="Start Pro Annual"
+          ctaHref="/auth/login?plan=annual"
+          highlight={false}
+          badge="Save 27%"
+        />
+      </div>
 
-        <div style={s.grid}>
-          {/* Free */}
-          <div style={s.card}>
-            <div style={s.planName}>Free</div>
-            <div style={s.price}>$0<span style={s.per}>/forever</span></div>
-            <Link href="/auth/login" style={s.btnGhost}>Get started free</Link>
-            <ul style={s.features}>
-              {features.free.map(f => (
-                <li key={f} style={s.feature}><span style={s.check}>✓</span>{f}</li>
-              ))}
-            </ul>
-          </div>
+      <p style={{ marginTop: 44, color: 'var(--muted)', fontSize: 13 }}>
+        Already have an account?{' '}
+        <Link href="/auth/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link>
+      </p>
 
-          {/* Pro */}
-          <div style={{ ...s.card, border: '1px solid var(--accent-dim)' }}>
-            <div style={s.proBadge}>MOST POPULAR</div>
-            <div style={s.planName}>Pro</div>
-            <div style={s.price}>
-              $9<span style={s.per}>/mo</span>
-              <span style={s.annual}> or $79/yr (save 27%)</span>
-            </div>
-            <Link href="/auth/login?redirectTo=/dashboard" style={s.btnPrimary}>Start with Pro</Link>
-            <ul style={s.features}>
-              {features.pro.map(f => (
-                <li key={f} style={s.feature}><span style={s.checkPro}>✓</span>{f}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </main>
-    </div>
+      <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 12, opacity: 0.6 }}>
+        Powered by Stripe · Cancel anytime · No hidden fees
+      </p>
+
+      <div style={{ marginTop: 32, maxWidth: 560 }}>
+        <DisclaimerFooter />
+      </div>
+      </div>
+    </main>
   )
 }
 
-const s: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: 'var(--bg)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: '1px solid var(--border)' },
-  logo: { fontWeight: 700, fontSize: 18, color: 'var(--accent)', textDecoration: 'none' },
-  loginLink: { color: 'var(--muted)', fontSize: 14 },
-  main: { maxWidth: 900, margin: '0 auto', padding: '64px 24px', textAlign: 'center' },
-  headline: { fontSize: 40, fontWeight: 800, marginBottom: 12 },
-  sub: { color: 'var(--muted)', fontSize: 18, marginBottom: 48 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, textAlign: 'left' },
-  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 32, position: 'relative' },
-  proBadge: {
-    position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
-    background: 'var(--accent-dim)', color: '#fff', fontSize: 11, fontWeight: 700,
-    letterSpacing: '0.08em', borderRadius: 20, padding: '3px 12px',
-  },
-  planName: { fontSize: 14, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 },
-  price: { fontSize: 36, fontWeight: 800, marginBottom: 24 },
-  per: { fontSize: 16, fontWeight: 400, color: 'var(--muted)' },
-  annual: { display: 'block', fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginTop: 4 },
-  btnPrimary: {
-    display: 'block', textAlign: 'center', padding: '12px 0',
-    background: 'var(--accent-dim)', color: '#fff', borderRadius: 8,
-    fontWeight: 600, fontSize: 15, textDecoration: 'none', marginBottom: 24,
-  },
-  btnGhost: {
-    display: 'block', textAlign: 'center', padding: '11px 0',
-    border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8,
-    fontWeight: 600, fontSize: 15, textDecoration: 'none', marginBottom: 24,
-  },
-  features: { listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 },
-  feature: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 },
-  check: { color: 'var(--green)', fontWeight: 700, flexShrink: 0 },
-  checkPro: { color: 'var(--accent)', fontWeight: 700, flexShrink: 0 },
+function PricingCard({ name, price, period, features, cta, ctaHref, highlight, badge }: {
+  name: string; price: string; period: string; features: readonly string[]
+  cta: string; ctaHref: string; highlight: boolean; badge?: string
+}) {
+  return (
+    <div style={{
+      background: '#fff',
+      border: `1px solid ${highlight ? 'var(--accent)' : 'var(--border)'}`,
+      borderRadius: 6,
+      padding: '32px 28px',
+      width: 300,
+      position: 'relative',
+      boxShadow: highlight ? '0 8px 28px rgba(255,106,0,.12)' : 'none',
+    }}>
+      {badge && (
+        <span style={{
+          position: 'absolute', top: -13, right: 18,
+          background: 'var(--yellow)', color: '#fff',
+          borderRadius: 3, padding: '3px 12px', fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+        }}>{badge}</span>
+      )}
+      {highlight && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: '1px', marginBottom: 8, textTransform: 'uppercase' }}>
+          Most Popular
+        </div>
+      )}
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{name}</h2>
+      <div style={{ fontSize: 38, fontWeight: 800, marginBottom: 4, letterSpacing: '-1px' }}>
+        {price}
+        <span style={{ fontSize: 15, color: 'var(--muted)', fontWeight: 400, letterSpacing: 0 }}> {period}</span>
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '22px 0' }} />
+      <ul style={{ listStyle: 'none', marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {features.map(f => (
+          <li key={f} style={{ fontSize: 14, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
+            {f}
+          </li>
+        ))}
+      </ul>
+      <Link href={ctaHref}>
+        <button
+          className={highlight ? 'btn-primary' : 'btn-outline'}
+          style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600 }}
+        >{cta}</button>
+      </Link>
+    </div>
+  )
 }

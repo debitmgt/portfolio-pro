@@ -1,47 +1,60 @@
+// app/api/stripe/checkout/route.ts
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabase/server'
+import { stripe, PLANS } from '@/lib/stripe'
 import type { NextRequest } from 'next/server'
-import { stripe } from '@/lib/stripe'
-import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const plan = req.nextUrl.searchParams.get('plan')
-  const priceId = plan === 'monthly'
-    ? process.env.STRIPE_MONTHLY_PRICE_ID
-    : process.env.STRIPE_ANNUAL_PRICE_ID
+  if (!user) {
+    return NextResponse.redirect(new URL('/auth/login', req.url))
+  }
 
-  if (!priceId) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+  const { searchParams } = new URL(req.url)
+  const plan = searchParams.get('plan') as 'monthly' | 'annual' | null
 
-  const admin = createAdminClient()
-  const { data: profile } = await admin
+  if (!plan || !['monthly', 'annual'].includes(plan)) {
+    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+  }
+
+  const priceId = plan === 'monthly' ? PLANS.monthly.priceId : PLANS.annual.priceId
+
+  // Get or create Stripe customer
+  const { data: profile } = await supabase
     .from('profiles')
     .select('stripe_customer_id, email')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   let customerId = profile?.stripe_customer_id
+
   if (!customerId) {
     const customer = await stripe.customers.create({
-      email: profile?.email ?? session.user.email,
-      metadata: { supabase_user_id: session.user.id },
+      email: profile?.email ?? user.email,
+      metadata: { supabase_user_id: user.id },
     })
     customerId = customer.id
-    await admin.from('profiles').update({ stripe_customer_id: customerId }).eq('id', session.user.id)
+
+    await supabase
+      .from('profiles')
+      .update({ stripe_customer_id: customerId })
+      .eq('id', user.id)
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
   const checkoutSession = await stripe.checkout.sessions.create({
     customer: customerId,
-    mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/dashboard?upgraded=1`,
-    cancel_url: `${appUrl}/pricing`,
-    metadata: { supabase_user_id: session.user.id },
+    mode: 'subscription',
+    success_url: `${baseUrl}/dashboard?upgraded=1`,
+    cancel_url: `${baseUrl}/pricing`,
+    // Pass user ID so the webhook can find them even before customer lookup is set up
+    metadata: { supabase_user_id: user.id },
   })
 
   return NextResponse.json({ url: checkoutSession.url })

@@ -1,7 +1,8 @@
+// lib/stripe.ts
 import Stripe from 'stripe'
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-04-10',
+  apiVersion: '2026-06-24.dahlia',
   typescript: true,
 })
 
@@ -9,21 +10,42 @@ export const PLANS = {
   free: {
     name: 'Free',
     price: 0,
-    maxHoldings: 3,
-    priceId: null,
+    holdingsLimit: 3,
+    features: [
+      'Up to 3 holdings',
+      'Live prices (30s refresh)',
+      'Portfolio tracker',
+      'Gain/loss calculations',
+      'Trail stop display',
+    ],
   },
   monthly: {
-    name: 'Pro Monthly',
+    name: 'Pro — Monthly',
     price: 9,
-    maxHoldings: Infinity,
     priceId: process.env.STRIPE_MONTHLY_PRICE_ID!,
+    holdingsLimit: Infinity,
+    features: [
+      'Unlimited holdings',
+      'Live prices (30s refresh)',
+      'All Pro tabs',
+      'Quality Ranking',
+      'Signals',
+      'Allocation View',
+      'Concentration',
+      'Charts',
+      'Fundamentals',
+      'Drawdown Alerts',
+    ],
   },
   annual: {
-    name: 'Pro Annual',
+    name: 'Pro — Annual',
     price: 79,
-    maxHoldings: Infinity,
     priceId: process.env.STRIPE_ANNUAL_PRICE_ID!,
+    holdingsLimit: Infinity,
+    features: [
+      'Everything in Monthly',
+      '2 months free (save 27%)',
+      'Priority support',
+    ],
   },
 } as const
-
-export type PlanKey = keyof typeof PLANS
