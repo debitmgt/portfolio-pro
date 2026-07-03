@@ -58,42 +58,31 @@ export async function GET(req: NextRequest) {
   })
 
   // ── Pro tier: watchlist digest, filtered by selection only ─────────────
-  // TEMP DIAGNOSTIC: run three variants to isolate which filter is the problem.
-  const allProfilesRes = await admin.from('profiles').select('*')
-  console.log('[send-newsletter] DIAG allProfiles', { error: allProfilesRes.error, count: allProfilesRes.data?.length, rows: allProfilesRes.data })
-
-  const planOnlyRes = await admin.from('profiles').select('*').eq('plan', 'pro')
-  console.log('[send-newsletter] DIAG planOnly', { error: planOnlyRes.error, count: planOnlyRes.data?.length, rows: planOnlyRes.data })
-
-  const optOutOnlyRes = await admin.from('profiles').select('*').eq('newsletter_opt_out', false)
-  console.log('[send-newsletter] DIAG optOutOnly', { error: optOutOnlyRes.error, count: optOutOnlyRes.data?.length })
-
-  const { data: proProfiles, error: proError } = await admin
+  // Filtering newsletter_opt_out in JS rather than as a second chained .eq()
+  // — a compound `.eq('plan','pro').eq('newsletter_opt_out', false)` query
+  // reliably returned zero rows even when a row matched both conditions
+  // individually (confirmed via diagnostic logging 2026-07-03). Querying by
+  // plan alone works correctly, so opt-out is applied as a plain array filter.
+  const { data: allProProfiles, error: proError } = await admin
     .from('profiles')
     .select('*')
     .eq('plan', 'pro')
-    .eq('newsletter_opt_out', false)
-  console.log('[send-newsletter] proProfiles query', {
-    error: proError,
-    count: proProfiles?.length ?? null,
-    rows: proProfiles,
-  })
   if (proError) {
     return NextResponse.json({ error: proError.message }, { status: 500 })
   }
+  const proProfiles = (allProProfiles ?? []).filter(p => !p.newsletter_opt_out)
 
   // One watchlist query per Pro user — fine at current scale (a handful of
   // users). If the Pro base grows meaningfully, batch this into a single
   // `.in('user_id', [...])` query and group in memory instead.
   const proBatch: BatchEmail[] = []
   let proSkippedEmptyWatchlist = 0
-  for (const profile of proProfiles ?? []) {
-    if (!profile.email) { console.log('[send-newsletter] skipping profile with no email', profile.id); continue }
-    const { data: watchlist, error: watchlistError } = await admin
+  for (const profile of proProfiles) {
+    if (!profile.email) continue
+    const { data: watchlist } = await admin
       .from('watchlist_items')
       .select('symbol')
       .eq('user_id', profile.id)
-    console.log('[send-newsletter] watchlist query', { userId: profile.id, error: watchlistError, watchlist })
     const symbols = (watchlist ?? []).map(w => w.symbol)
     if (symbols.length === 0) {
       proSkippedEmptyWatchlist += 1
