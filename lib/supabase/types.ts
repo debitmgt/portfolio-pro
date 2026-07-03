@@ -7,6 +7,10 @@ export interface Profile {
   plan: Plan
   stripe_customer_id: string | null
   created_at: string
+  // Pro users get the monthly watchlist digest by default (opt-out). Free
+  // Top 25 subscribers are separate — see NewsletterSubscriber (opt-in).
+  newsletter_opt_out: boolean
+  newsletter_unsubscribe_token: string
 }
 
 export interface Subscription {
@@ -55,6 +59,47 @@ export interface TickerMetrics {
   updated_at: string
 }
 
+// Broad-market Top 25 ranking (trailing 1y total return), computed identically
+// for every subscriber on a monthly schedule. Feeds the free newsletter
+// (unfiltered) and the Pro digest (filtered by WatchlistItem symbols). Never
+// derived from any user's holdings. See app/api/cron/refresh-monthly-rankings.
+export interface MonthlyRanking {
+  id: string
+  period_label: string
+  symbol: string
+  company_name: string | null
+  rank: number
+  trailing_return_1y: number | null
+  price_current: number | null
+  price_1y_ago: number | null
+  methodology_version: string
+  computed_at: string
+  created_at: string
+}
+
+// Public, account-free signups for the free monthly Top 25 email. Written
+// only via server routes using the service-role client.
+export interface NewsletterSubscriber {
+  id: string
+  email: string
+  confirmed: boolean
+  confirm_token: string
+  unsubscribe_token: string
+  confirmed_at: string | null
+  unsubscribed_at: string | null
+  created_at: string
+}
+
+// Pro-only, user-entered tickers (never shares/cost basis) that filter
+// MonthlyRanking into a personalized digest — selection-based personalization,
+// not computation-based. Deliberately separate from Holding.
+export interface WatchlistItem {
+  id: string
+  user_id: string
+  symbol: string
+  created_at: string
+}
+
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
 // are plain object types, not references to a named interface. Flatten<T>
 // forces TS to compute a fresh literal type while still deriving from the
@@ -86,6 +131,24 @@ export type Database = {
         Row: Flatten<TickerMetrics>
         Insert: Flatten<Partial<TickerMetrics> & { symbol: string }>
         Update: Flatten<Partial<TickerMetrics>>
+        Relationships: []
+      }
+      monthly_rankings: {
+        Row: Flatten<MonthlyRanking>
+        Insert: Flatten<Partial<MonthlyRanking> & { period_label: string; symbol: string; rank: number }>
+        Update: Flatten<Partial<MonthlyRanking>>
+        Relationships: []
+      }
+      newsletter_subscribers: {
+        Row: Flatten<NewsletterSubscriber>
+        Insert: Flatten<Partial<NewsletterSubscriber> & { email: string }>
+        Update: Flatten<Partial<NewsletterSubscriber>>
+        Relationships: []
+      }
+      watchlist_items: {
+        Row: Flatten<WatchlistItem>
+        Insert: Flatten<Partial<WatchlistItem> & { user_id: string; symbol: string }>
+        Update: Flatten<Partial<WatchlistItem>>
         Relationships: []
       }
     }

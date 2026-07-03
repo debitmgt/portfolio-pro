@@ -5,7 +5,30 @@
     },
     "app/api/finnhub/route.ts": {
       "maxDuration": 15
+    },
+    "app/api/cron/refresh-ticker-metrics/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/refresh-monthly-rankings/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/send-newsletter/route.ts": {
+      "maxDuration": 120
     }
   },
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/refresh-ticker-metrics",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-monthly-rankings",
+      "schedule": "0 5 1 * *"
+    },
+    {
+      "path": "/api/cron/send-newsletter",
+      "schedule": "0 8 1 * *"
+    }
+  ]
 }

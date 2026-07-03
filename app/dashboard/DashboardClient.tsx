@@ -8,7 +8,7 @@ import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'News', 'My Returns', 'Position Status', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
+const ALL_TABS = ['Tracker', 'News', 'My Returns', 'Position Status', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts', 'Watchlist']
 
 interface Props {
   userId: string
@@ -245,6 +245,10 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 
         {activeTab === 'Drawdown Alerts' && plan === 'pro' && (
           <StopLossTab holdings={holdings} prices={prices} />
+        )}
+
+        {activeTab === 'Watchlist' && plan === 'pro' && (
+          <WatchlistTab />
         )}
 
       </main>
@@ -955,6 +959,95 @@ function StopLossTab({ holdings, prices }: { holdings: Holding[]; prices: PriceM
           </tbody>
         </table>
       </div>
+    </ProTabShell>
+  )
+}
+
+// ─── Watchlist Tab ────────────────────────────────────────────────────────────
+// Pro-only. Tickers you pick (never shares or cost basis) — this is what the
+// monthly digest email filters down to, separate from what you actually hold
+// in Tracker. See app/api/watchlist and app/api/cron/send-newsletter.
+interface WatchlistItemRow { id: string; symbol: string; created_at: string }
+
+function WatchlistTab() {
+  const [items, setItems] = useState<WatchlistItemRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newSymbol, setNewSymbol] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch('/api/watchlist')
+      .then(res => (res.ok ? res.json() : []))
+      .then((d: WatchlistItemRow[]) => setItems(d))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function addSymbol() {
+    const symbol = newSymbol.trim().toUpperCase()
+    if (!symbol) return
+    setError('')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not add symbol.'); return }
+      setNewSymbol('')
+      load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeSymbol(id: string) {
+    await fetch(`/api/watchlist?id=${id}`, { method: 'DELETE' })
+    load()
+  }
+
+  return (
+    <ProTabShell title="Watchlist" description="Tickers you want tracked in your monthly digest email — not your holdings, just symbols you're following. Filters the same Top 25 ranking every subscriber sees down to your list.">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          value={newSymbol}
+          onChange={e => setNewSymbol(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addSymbol() }}
+          placeholder="Add a symbol (e.g. AAPL)"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', color: 'var(--text)', fontSize: 13, flex: 1, maxWidth: 220 }}
+        />
+        <button onClick={addSymbol} disabled={saving || !newSymbol.trim()} className="btn-primary" style={{ padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}>
+          Add
+        </button>
+      </div>
+      {error && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{error}</p>}
+
+      {loading ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
+      ) : items.length === 0 ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No symbols yet — add tickers you want in your monthly digest.</p>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {items.map(item => (
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{item.symbol}</span>
+              <button onClick={() => removeSymbol(item.id)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: 0 }} aria-label={`Remove ${item.symbol}`}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 16, lineHeight: 1.6 }}>
+        Up to 25 symbols. This list only controls which rows appear in your monthly email — it doesn't affect your Tracker holdings or any other tab. Manage your email delivery preference from account settings.
+      </p>
     </ProTabShell>
   )
 }

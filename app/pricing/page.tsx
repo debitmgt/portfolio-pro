@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PLANS } from '@/lib/stripe'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 import MarketTicker from '@/components/MarketTicker'
+import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 
 export default function PricingPage() {
   return (
@@ -67,6 +68,10 @@ export default function PricingPage() {
       <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 12, opacity: 0.6 }}>
         Powered by Stripe · Cancel anytime · No hidden fees
       </p>
+
+      <div style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <NewsletterSignupForm />
+      </div>
 
       <div style={{ marginTop: 32, maxWidth: 560 }}>
         <DisclaimerFooter />
