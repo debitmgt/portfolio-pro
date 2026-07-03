@@ -58,6 +58,16 @@ export async function GET(req: NextRequest) {
   })
 
   // ── Pro tier: watchlist digest, filtered by selection only ─────────────
+  // TEMP DIAGNOSTIC: run three variants to isolate which filter is the problem.
+  const allProfilesRes = await admin.from('profiles').select('*')
+  console.log('[send-newsletter] DIAG allProfiles', { error: allProfilesRes.error, count: allProfilesRes.data?.length, rows: allProfilesRes.data })
+
+  const planOnlyRes = await admin.from('profiles').select('*').eq('plan', 'pro')
+  console.log('[send-newsletter] DIAG planOnly', { error: planOnlyRes.error, count: planOnlyRes.data?.length, rows: planOnlyRes.data })
+
+  const optOutOnlyRes = await admin.from('profiles').select('*').eq('newsletter_opt_out', false)
+  console.log('[send-newsletter] DIAG optOutOnly', { error: optOutOnlyRes.error, count: optOutOnlyRes.data?.length })
+
   const { data: proProfiles, error: proError } = await admin
     .from('profiles')
     .select('*')
