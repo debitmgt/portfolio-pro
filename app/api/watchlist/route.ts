@@ -12,13 +12,16 @@ export const dynamic = 'force-dynamic'
 
 const WATCHLIST_LIMIT = 25 // matches the Top 25 list size — no reason to allow more
 
-async function requireProUser(supabase: ReturnType<typeof createServerClient>) {
+interface ProUserError { error: NextResponse }
+interface ProUserOk { userId: string }
+
+async function requireProUser(supabase: ReturnType<typeof createServerClient>): Promise<ProUserError | ProUserOk> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) as const }
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
   const { data: profile } = await supabase.from('profiles').select('plan').eq('id', user.id).single()
   if (profile?.plan !== 'pro') {
-    return { error: NextResponse.json({ error: 'Watchlist is a Pro feature.' }, { status: 403 }) as const }
+    return { error: NextResponse.json({ error: 'Watchlist is a Pro feature.' }, { status: 403 }) }
   }
   return { userId: user.id }
 }
