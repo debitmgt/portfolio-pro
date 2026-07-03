@@ -63,6 +63,11 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('plan', 'pro')
     .eq('newsletter_opt_out', false)
+  console.log('[send-newsletter] proProfiles query', {
+    error: proError,
+    count: proProfiles?.length ?? null,
+    rows: proProfiles,
+  })
   if (proError) {
     return NextResponse.json({ error: proError.message }, { status: 500 })
   }
@@ -73,11 +78,12 @@ export async function GET(req: NextRequest) {
   const proBatch: BatchEmail[] = []
   let proSkippedEmptyWatchlist = 0
   for (const profile of proProfiles ?? []) {
-    if (!profile.email) continue
-    const { data: watchlist } = await admin
+    if (!profile.email) { console.log('[send-newsletter] skipping profile with no email', profile.id); continue }
+    const { data: watchlist, error: watchlistError } = await admin
       .from('watchlist_items')
       .select('symbol')
       .eq('user_id', profile.id)
+    console.log('[send-newsletter] watchlist query', { userId: profile.id, error: watchlistError, watchlist })
     const symbols = (watchlist ?? []).map(w => w.symbol)
     if (symbols.length === 0) {
       proSkippedEmptyWatchlist += 1
