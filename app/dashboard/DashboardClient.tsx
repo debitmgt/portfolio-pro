@@ -1,14 +1,14 @@
 'use client'
 // app/dashboard/DashboardClient.tsx
 import { useState, useEffect, useCallback } from 'react'
-import type { Holding, Plan } from '@/lib/supabase/types'
+import type { Holding, Plan, TickerMetrics } from '@/lib/supabase/types'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'News', 'Quality Ranking', 'Signals', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
+const ALL_TABS = ['Tracker', 'News', 'My Returns', 'Position Status', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts']
 
 interface Props {
   userId: string
@@ -215,12 +215,12 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
           />
         )}
 
-        {activeTab === 'Quality Ranking' && plan === 'pro' && (
-          <DailyRankingTab holdings={holdings} prices={prices} />
+        {activeTab === 'My Returns' && plan === 'pro' && (
+          <MyReturnsTab holdings={holdings} prices={prices} />
         )}
 
-        {activeTab === 'Signals' && plan === 'pro' && (
-          <SignalsTab holdings={holdings} prices={prices} />
+        {activeTab === 'Position Status' && plan === 'pro' && (
+          <PositionStatusTab holdings={holdings} prices={prices} />
         )}
 
         {activeTab === 'Allocation View' && plan === 'pro' && (
@@ -378,8 +378,13 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   )
 }
 
-// ─── Daily Ranking Tab ────────────────────────────────────────────────────────
-function DailyRankingTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+// ─── My Returns Tab ───────────────────────────────────────────────────────────
+// Sorts the user's own holdings by their own return since purchase. This is a
+// personal calculation off each holding's individual cost basis — not a rating
+// of the security itself. Two people holding the same stock will see different
+// numbers here depending on what they each paid, which is why this is framed as
+// a personal-return view rather than a "ranking" of the companies.
+function MyReturnsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
   const ranked = [...holdings]
     .map(h => {
       const price = prices[h.symbol]
@@ -390,12 +395,12 @@ function DailyRankingTab({ holdings, prices }: { holdings: Holding[]; prices: Pr
     .sort((a, b) => (b.gain ?? -Infinity) - (a.gain ?? -Infinity))
 
   return (
-    <ProTabShell title="Quality Ranking" description="Your holdings sorted by return performance — a data view, not a buy list.">
+    <ProTabShell title="My Returns" description="Your own holdings sorted by return since your purchase price — a personal calculation, not a rating of the companies themselves.">
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-              {['Rank', 'Symbol', 'Current Price', 'Cost Basis', 'Return %', 'Market Value'].map(h => (
+              {['#', 'Symbol', 'Current Price', 'Cost Basis', 'Your Return %', 'Market Value'].map(h => (
                 <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
@@ -423,12 +428,13 @@ function DailyRankingTab({ holdings, prices }: { holdings: Holding[]; prices: Pr
   )
 }
 
-// ─── Signals Tab ──────────────────────────────────────────────────────────────
-// Describes what changed in a position (price vs. cost basis, proximity to your
-// trailing-stop threshold). Deliberately does NOT output buy/sell/hold verdicts —
-// see the repositioning note: this is a data view for long-term owners, not a
-// trade-timing tool.
-function SignalsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+// ─── Position Status Tab ──────────────────────────────────────────────────────
+// Describes what changed in a position (price vs. your own cost basis, proximity
+// to your own trailing-stop threshold). Renamed from "Signals" — like My Returns,
+// this is computed off each user's private cost basis and trail %, so it is a
+// status description of your position, not a market signal or research call about
+// the security. Deliberately does NOT output buy/sell/hold verdicts.
+function PositionStatusTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
   type SignalState = 'NEAR_STOP' | 'DOWN' | 'UP_STRONG' | 'UP' | 'NO_DATA'
 
   function getSignal(h: Holding, price: number | undefined): { state: SignalState; label: string; reason: string } {
@@ -445,7 +451,7 @@ function SignalsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMa
   const stateColor = { NEAR_STOP: 'var(--yellow)', DOWN: 'var(--red)', UP_STRONG: 'var(--green)', UP: 'var(--accent)', NO_DATA: 'var(--muted)' }
 
   return (
-    <ProTabShell title="Signals" description="Fundamental and valuation changes in the companies you own — not trade calls.">
+    <ProTabShell title="Position Status" description="How each position has moved relative to your own cost basis and stop threshold — a personal status view, not a market call.">
       <div style={{ display: 'grid', gap: 12 }}>
         {holdings.length === 0 && <EmptyState />}
         {holdings.map(h => {
@@ -657,16 +663,43 @@ function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: Pric
 }
 
 // ─── Fundamentals Tab ─────────────────────────────────────────────────────────
+// Includes generic per-ticker percentile scores, shown individually rather
+// than blended into one number (My Returns / Position Status are personal
+// calculators computed off each user's own cost basis — this is the
+// opposite: one shared table, computed identically for every symbol on a
+// daily schedule from public data, then filtered to what you hold). See
+// app/api/cron/refresh-ticker-metrics and Ownfolio_Publishers_Exclusion_Attorney_Memo.docx.
 function FundamentalsTab({ holdings }: { holdings: Holding[] }) {
+  const [metricsMap, setMetricsMap] = useState<Record<string, TickerMetrics>>({})
+  const [metricsLoading, setMetricsLoading] = useState(true)
+
+  useEffect(() => {
+    const symbols = [...new Set(holdings.map(h => h.symbol))]
+    if (!symbols.length) { setMetricsLoading(false); return }
+    setMetricsLoading(true)
+    fetch(`/api/ticker-metrics?symbols=${encodeURIComponent(symbols.join(','))}`)
+      .then(res => (res.ok ? res.json() : { items: [] }))
+      .then((d: { items: TickerMetrics[] }) => {
+        const map: Record<string, TickerMetrics> = {}
+        for (const item of d.items ?? []) map[item.symbol] = item
+        setMetricsMap(map)
+      })
+      .catch(() => { /* silent — card falls back to "not yet scored" */ })
+      .finally(() => setMetricsLoading(false))
+  }, [holdings])
+
   return (
-    <ProTabShell title="Fundamentals" description="Key fundamental metrics for your holdings. Data sourced from Finnhub.">
+    <ProTabShell title="Fundamentals" description="Key fundamental metrics for your holdings, plus four individual percentile scores computed the same way for every ticker on a daily schedule.">
       {holdings.length === 0 ? <EmptyState /> : (
         <div style={{ display: 'grid', gap: 12 }}>
           {holdings.map(h => (
-            <FundamentalsCard key={h.id} symbol={h.symbol} />
+            <FundamentalsCard key={h.id} symbol={h.symbol} metrics={metricsMap[h.symbol]} metricsLoading={metricsLoading} />
           ))}
         </div>
       )}
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 16, lineHeight: 1.6 }}>
+        Scoring methodology (v1): four equally-weighted factors, each scored 0–100 — Valuation (P/E percentile among tracked tickers, lower P/E scores higher), Growth (revenue growth percentile), Margin Trend (expanding/flat/contracting vs. the 5-year average), and Stability (beta percentile, lower beta scores higher). Each is computed identically for every ticker from public data and refreshed daily — shown individually, not blended into a single number — and none of it is tailored to your portfolio, your cost basis, or your position size, or a recommendation to buy, hold, or sell.
+      </p>
     </ProTabShell>
   )
 }
@@ -682,7 +715,7 @@ interface Fundamentals {
   beta: number | null
 }
 
-function FundamentalsCard({ symbol }: { symbol: string }) {
+function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string; metrics?: TickerMetrics; metricsLoading?: boolean }) {
   const [data, setData] = useState<Fundamentals | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -737,9 +770,37 @@ function FundamentalsCard({ symbol }: { symbol: string }) {
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Percentile Scores</div>
+        {metricsLoading ? (
+          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading…</p>
+        ) : !metrics || metrics.valuation_score == null ? (
+          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Not yet scored for {symbol} — refreshes daily.</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
+            <ScoreChip label="Valuation" value={metrics.valuation_score} />
+            <ScoreChip label="Growth" value={metrics.growth_score} />
+            <ScoreChip label="Margin Trend" value={metrics.margin_score} note={metrics.margin_trend ?? undefined} />
+            <ScoreChip label="Stability" value={metrics.stability_score} />
+          </div>
+        )}
+      </div>
+
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
         Data from Finnhub · Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
       </p>
+    </div>
+  )
+}
+
+function ScoreChip({ label, value, note }: { label: string; value: number | null; note?: string }) {
+  return (
+    <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 10px' }}>
+      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>
+        {value != null ? value : '—'}{note ? ` · ${note}` : ''}
+      </div>
     </div>
   )
 }

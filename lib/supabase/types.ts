@@ -31,6 +31,30 @@ export interface Holding {
   updated_at: string
 }
 
+// Generic, per-ticker content computed identically for every user on a fixed
+// schedule from public market data only (see scripts/cron/refresh-ticker-metrics).
+// Never derived from any individual user's cost basis, shares, or portfolio —
+// this is the "compute once, filter per user" layer described in the publisher's-
+// exclusion architecture review.
+export interface TickerMetrics {
+  symbol: string
+  market_cap: number | null
+  pe_ratio: number | null
+  pe_percentile: number | null
+  revenue_growth_yoy: number | null
+  growth_percentile: number | null
+  beta: number | null
+  stability_percentile: number | null
+  margin_trend: 'expanding' | 'flat' | 'contracting' | null
+  valuation_score: number | null
+  growth_score: number | null
+  margin_score: number | null
+  stability_score: number | null
+  methodology_version: string
+  computed_at: string
+  updated_at: string
+}
+
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
 // are plain object types, not references to a named interface. Flatten<T>
 // forces TS to compute a fresh literal type while still deriving from the
@@ -56,6 +80,12 @@ export type Database = {
         Row: Flatten<Holding>
         Insert: Flatten<Omit<Holding, 'id' | 'created_at' | 'updated_at'>>
         Update: Flatten<Partial<Omit<Holding, 'id' | 'user_id'>>>
+        Relationships: []
+      }
+      ticker_metrics: {
+        Row: Flatten<TickerMetrics>
+        Insert: Flatten<Partial<TickerMetrics> & { symbol: string }>
+        Update: Flatten<Partial<TickerMetrics>>
         Relationships: []
       }
     }
