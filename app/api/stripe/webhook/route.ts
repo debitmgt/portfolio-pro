@@ -49,17 +49,30 @@ export async function POST(req: NextRequest) {
     if (error) console.error('[webhook] setPlan error:', error)
   }
 
+  // current_period_end moved from the top-level Subscription object to each
+  // subscription item as of newer Stripe API versions (this account pins
+  // 2026-06-24.dahlia). Reading it off `sub` directly silently evaluated to
+  // NaN and crashed Date.toISOString() — which happened *before* setPlan()
+  // ran in every handler below, so payments succeeded but users never got
+  // upgraded (or downgraded on cancellation). Read it from the item instead,
+  // and never let a bookkeeping failure here block the plan change.
   async function upsertSubscription(sub: Stripe.Subscription, userId: string) {
-    const { error } = await supabase.from('subscriptions').upsert({
-      id: sub.id,
-      user_id: userId,
-      status: sub.status,
-      price_id: sub.items.data[0]?.price.id ?? null,
-      current_period_end: new Date((sub as any).current_period_end * 1000).toISOString(),
-      cancel_at_period_end: sub.cancel_at_period_end,
-      updated_at: new Date().toISOString(),
-    })
-    if (error) console.error('[webhook] upsertSubscription error:', error)
+    try {
+      const item = sub.items.data[0]
+      const periodEndUnix = (item as any)?.current_period_end ?? null
+      const { error } = await supabase.from('subscriptions').upsert({
+        id: sub.id,
+        user_id: userId,
+        status: sub.status,
+        price_id: item?.price.id ?? null,
+        current_period_end: periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : null,
+        cancel_at_period_end: sub.cancel_at_period_end,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) console.error('[webhook] upsertSubscription error:', error)
+    } catch (err) {
+      console.error('[webhook] upsertSubscription threw:', err)
+    }
   }
 
   // ── Event handlers ───────────────────────────────────────────────────────
@@ -87,13 +100,15 @@ export async function POST(req: NextRequest) {
           .update({ stripe_customer_id: customerId })
           .eq('id', userId)
 
+        // Grant access first — it's the part that actually matters to the
+        // user. Subscription bookkeeping runs after and can't block it.
+        await setPlan(userId, 'pro')
+        console.log('[webhook] checkout.session.completed: upgraded user', userId)
+
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription as string)
           await upsertSubscription(sub, userId)
         }
-
-        await setPlan(userId, 'pro')
-        console.log('[webhook] checkout.session.completed: upgraded user', userId)
         break
       }
 
@@ -103,11 +118,11 @@ export async function POST(req: NextRequest) {
         const userId = await getUserIdFromCustomer(sub.customer as string)
         if (!userId) break
 
-        await upsertSubscription(sub, userId)
-
         const isActive = ['active', 'trialing'].includes(sub.status)
         await setPlan(userId, isActive ? 'pro' : 'free')
         console.log(`[webhook] ${event.type}: user ${userId} → ${isActive ? 'pro' : 'free'}`)
+
+        await upsertSubscription(sub, userId)
         break
       }
 
@@ -116,9 +131,10 @@ export async function POST(req: NextRequest) {
         const userId = await getUserIdFromCustomer(sub.customer as string)
         if (!userId) break
 
-        await upsertSubscription(sub, userId)
         await setPlan(userId, 'free')
         console.log('[webhook] subscription.deleted: downgraded user', userId)
+
+        await upsertSubscription(sub, userId)
         break
       }
 
