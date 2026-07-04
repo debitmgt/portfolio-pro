@@ -67,8 +67,8 @@ export default async function MarketNewsFeed() {
   if (items.length === 0) return null   // fail quiet — this is a nice-to-have, not core to the page
 
   return (
-    <div style={{ width: '100%', maxWidth: 720, marginBottom: 52 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+    <div style={{ width: '100%', maxWidth: 380 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 6, marginBottom: 14 }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Market headlines</h2>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Same for every visitor · not commentary</span>
       </div>
