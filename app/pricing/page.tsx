@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PLANS } from '@/lib/stripe'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 import MarketTicker from '@/components/MarketTicker'
+import MarketNewsFeed from '@/components/MarketNewsFeed'
 import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 
 export default function PricingPage() {
@@ -110,6 +111,10 @@ export default function PricingPage() {
       </p>
 
       <div style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <MarketNewsFeed />
+      </div>
+
+      <div style={{ marginTop: 8, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
         <NewsletterSignupForm />
       </div>
 
