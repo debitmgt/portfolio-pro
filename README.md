@@ -1,4 +1,4 @@
-# Ownfolio (formerly Signalfolio)
+# Ownfolio
 
 Real-time data and analytics for long-term, buy-and-hold investors, with Stripe billing.
 
@@ -29,8 +29,8 @@ Real-time data and analytics for long-term, buy-and-hold investors, with Stripe 
 - [ ] Create a new project at https://supabase.com
 - [ ] Go to **SQL Editor → New Query**, paste `supabase/migrations/001_schema.sql`, click **Run**
 - [ ] Go to **Authentication → URL Configuration**:
-  - Site URL: `https://signalfolio.net`
-  - Redirect URLs: add `https://signalfolio.net/auth/callback`
+  - Site URL: `https://ownfolio.net`
+  - Redirect URLs: add `https://ownfolio.net/auth/callback`
 - [ ] Go to **Project Settings → API** and copy:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -46,7 +46,7 @@ Real-time data and analytics for long-term, buy-and-hold investors, with Stripe 
   - `STRIPE_SECRET_KEY` (secret key)
   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (publishable key)
 - [ ] Go to **Developers → Webhooks → Add endpoint**:
-  - URL: `https://signalfolio.net/api/stripe/webhook`
+  - URL: `https://ownfolio.net/api/stripe/webhook`
   - Events to listen for:
     - `checkout.session.completed`
     - `customer.subscription.created`
@@ -75,13 +75,13 @@ Real-time data and analytics for long-term, buy-and-hold investors, with Stripe 
   STRIPE_MONTHLY_PRICE_ID
   STRIPE_ANNUAL_PRICE_ID
   FINNHUB_API_KEY
-  NEXT_PUBLIC_APP_URL=https://signalfolio.net
+  NEXT_PUBLIC_APP_URL=https://ownfolio.net
   ```
-- [ ] Add your custom domain: **Domains → Add → signalfolio.net**
+- [ ] Add your custom domain: **Domains → Add → ownfolio.net**
 - [ ] Update DNS at your registrar to point to Vercel
 
 ### 6. Post-deployment verification
-- [ ] Visit `https://signalfolio.net` → pricing page loads
+- [ ] Visit `https://ownfolio.net` → pricing page loads
 - [ ] Sign up for a new account → confirmation email received
 - [ ] Click confirmation link → redirected to `/dashboard`
 - [ ] Add a holding (e.g. AAPL) → live price appears within 30s

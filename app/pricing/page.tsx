@@ -29,6 +29,46 @@ export default function PricingPage() {
         </p>
       </div>
 
+      <div style={{
+        display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center',
+        maxWidth: 720, marginBottom: 52, textAlign: 'left',
+      }}>
+        <div style={{ flex: '1 1 300px', minWidth: 260 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+            What Ownfolio is
+          </div>
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              'A near-real-time data and analytics tool for people who buy and hold quality companies.',
+              'A way to see fundamentals, valuation, and portfolio composition clearly, without noise.',
+              'Transparent about method — every number traces to a disclosed, checkable rule.',
+            ].map(item => (
+              <li key={item} style={{ fontSize: 13.5, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div style={{ flex: '1 1 300px', minWidth: 260 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+            What Ownfolio is not
+          </div>
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              'Not a financial adviser, broker, or money manager — no personalized recommendations, ever.',
+              'Not a trade-timing or trading-signal service.',
+              'Not built around exit timing, position sizing formulas, or short-term ranking.',
+            ].map(item => (
+              <li key={item} style={{ fontSize: 13.5, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                <span style={{ color: 'var(--red)', marginTop: 1, flexShrink: 0 }}>✕</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
         <PricingCard
           name={PLANS.free.name}

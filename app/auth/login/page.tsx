@@ -21,9 +21,14 @@ function LoginForm() {
   const [error, setError] = useState(urlError ?? '')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
 
   async function handleSubmit() {
     setError('')
+    if (mode === 'signup' && !acknowledged) {
+      setError('Please confirm you understand Ownfolio is data and analytics, not personalized advice, before creating an account.')
+      return
+    }
     setLoading(true)
     try {
       if (mode === 'signup') {
@@ -107,6 +112,27 @@ function LoginForm() {
         autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
       />
 
+      {mode === 'signup' && (
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 18,
+          fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, cursor: 'pointer',
+        }}>
+          <input
+            type="checkbox"
+            checked={acknowledged}
+            onChange={e => setAcknowledged(e.target.checked)}
+            style={{ marginTop: 2, flexShrink: 0 }}
+          />
+          <span>
+            I understand Ownfolio provides data and analytics for self-directed, long-term investors —
+            not personalized investment advice. See the{' '}
+            <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="link" style={{ fontSize: 12.5 }}>
+              full disclaimer
+            </a>.
+          </span>
+        </label>
+      )}
+
       {error && (
         <div style={{
           background: 'var(--red-tint)', border: '1px solid var(--red)',
@@ -119,8 +145,8 @@ function LoginForm() {
       <button
         className="btn-primary"
         onClick={handleSubmit}
-        disabled={loading}
-        style={{ width: '100%', padding: '11px 0', fontSize: 15 }}
+        disabled={loading || (mode === 'signup' && !acknowledged)}
+        style={{ width: '100%', padding: '11px 0', fontSize: 15, opacity: (mode === 'signup' && !acknowledged) ? 0.6 : 1 }}
       >
         {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
       </button>
