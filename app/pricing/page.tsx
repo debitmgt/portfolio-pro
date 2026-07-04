@@ -114,7 +114,7 @@ export default function PricingPage() {
         <MarketNewsFeed />
       </div>
 
-      <div style={{ marginTop: 8, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <div id="newsletter" style={{ marginTop: 8, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
         <NewsletterSignupForm />
       </div>
 

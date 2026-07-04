@@ -8,6 +8,7 @@ export default function ConfirmedPage() {
       eyebrow="Newsletter"
       title="You're subscribed"
       body="You'll get the Ownfolio Top 25 once a month — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap from our tracked universe, same lists for every subscriber. You can unsubscribe anytime from the link in any email."
+      extraLink={{ href: '/newsletter/archive', label: 'Browse past issues →' }}
     />
   )
 }

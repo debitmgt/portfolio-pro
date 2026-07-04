@@ -4,6 +4,7 @@
 // to app/api/newsletter/subscribe, which sends a double opt-in confirmation
 // email rather than subscribing immediately.
 import { useState } from 'react'
+import Link from 'next/link'
 
 export default function NewsletterSignupForm() {
   const [email, setEmail] = useState('')
@@ -68,6 +69,9 @@ export default function NewsletterSignupForm() {
         </button>
       </form>
       {status === 'error' && <p style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{message}</p>}
+      <p style={{ marginTop: 12 }}>
+        <Link href="/newsletter/archive" style={{ fontSize: 12, color: 'var(--muted)' }}>Browse past issues →</Link>
+      </p>
     </div>
   )
 }
