@@ -1,0 +1,19 @@
+# Normalize all text files to LF in the repository and on checkout. This
+# avoids the CRLF/LF churn that's been showing previously-committed files
+# (e.g. README.md, package.json, page.tsx files) as perpetually "modified"
+# on Windows even with no real content change — eol=lf forces a consistent
+# line ending on checkout instead of letting core.autocrlf convert back and
+# forth, which is what caused files to end up with mixed line endings after
+# edits.
+* text=auto eol=lf
+
+# Binary files — never touch line endings, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
