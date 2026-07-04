@@ -1,12 +1,16 @@
 // app/api/stripe/checkout/route.ts
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { stripe, PLANS } from '@/lib/stripe'
+import { stripe, PLANS, CHECKOUT_ENABLED } from '@/lib/stripe'
 import type { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  if (!CHECKOUT_ENABLED) {
+    return NextResponse.redirect(new URL('/pricing?paused=1', req.url))
+  }
+
   const supabase = createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 

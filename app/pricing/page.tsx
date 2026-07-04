@@ -1,12 +1,12 @@
 // app/pricing/page.tsx
 import Link from 'next/link'
-import { PLANS } from '@/lib/stripe'
+import { PLANS, CHECKOUT_ENABLED } from '@/lib/stripe'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 import MarketTicker from '@/components/MarketTicker'
 import MarketNewsFeed from '@/components/MarketNewsFeed'
 import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 
-export default function PricingPage() {
+export default function PricingPage({ searchParams }: { searchParams?: { paused?: string } }) {
   return (
     <main style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -29,6 +29,17 @@ export default function PricingPage() {
           Real-time data for long-term owners.
         </p>
       </div>
+
+      {searchParams?.paused === '1' && (
+        <div style={{
+          maxWidth: 480, marginBottom: 28, padding: '12px 18px', borderRadius: 6,
+          background: 'var(--surface)', border: '1px solid var(--border)', textAlign: 'center',
+        }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+            Pro sign-ups are temporarily paused — check back soon.
+          </p>
+        </div>
+      )}
 
       <div style={{
         display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center',
@@ -85,19 +96,21 @@ export default function PricingPage() {
           price={`$${PLANS.monthly.price}`}
           period="/ month"
           features={PLANS.monthly.features}
-          cta="Start Pro Monthly"
+          cta={CHECKOUT_ENABLED ? 'Start Pro Monthly' : 'Coming soon'}
           ctaHref="/auth/login?plan=monthly"
           highlight
+          disabled={!CHECKOUT_ENABLED}
         />
         <PricingCard
           name={PLANS.annual.name}
           price={`$${PLANS.annual.price}`}
           period="/ year"
           features={PLANS.annual.features}
-          cta="Start Pro Annual"
+          cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
           ctaHref="/auth/login?plan=annual"
           highlight={false}
           badge="Save 27%"
+          disabled={!CHECKOUT_ENABLED}
         />
       </div>
 
@@ -126,9 +139,9 @@ export default function PricingPage() {
   )
 }
 
-function PricingCard({ name, price, period, features, cta, ctaHref, highlight, badge }: {
+function PricingCard({ name, price, period, features, cta, ctaHref, highlight, badge, disabled }: {
   name: string; price: string; period: string; features: readonly string[]
-  cta: string; ctaHref: string; highlight: boolean; badge?: string
+  cta: string; ctaHref: string; highlight: boolean; badge?: string; disabled?: boolean
 }) {
   return (
     <div style={{
@@ -166,12 +179,20 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
           </li>
         ))}
       </ul>
-      <Link href={ctaHref}>
+      {disabled ? (
         <button
-          className={highlight ? 'btn-primary' : 'btn-outline'}
-          style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600 }}
+          disabled
+          className="btn-outline"
+          style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600, opacity: 0.5, cursor: 'not-allowed' }}
         >{cta}</button>
-      </Link>
+      ) : (
+        <Link href={ctaHref}>
+          <button
+            className={highlight ? 'btn-primary' : 'btn-outline'}
+            style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600 }}
+          >{cta}</button>
+        </Link>
+      )}
     </div>
   )
 }

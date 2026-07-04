@@ -1071,6 +1071,13 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
   async function startCheckout(plan: 'monthly' | 'annual') {
     setLoading(plan)
     const res = await fetch(`/api/stripe/checkout?plan=${plan}`)
+    // When checkout is paused, the route redirects to /pricing?paused=1
+    // (an HTML page) instead of returning JSON — follow that redirect
+    // directly rather than trying to parse it as checkout session JSON.
+    if (!res.headers.get('content-type')?.includes('application/json')) {
+      window.location.href = res.url
+      return
+    }
     const data = await res.json()
     if (data.url) window.location.href = data.url
     else setLoading(null)
