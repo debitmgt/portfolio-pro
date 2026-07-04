@@ -1,23 +1,30 @@
 // app/api/cron/refresh-monthly-rankings/route.ts
 //
 // Scheduled job (see vercel.json "crons"). Scores a fixed, curated universe of
-// large/liquid US stocks by trailing 1-year total return and upserts the
-// result into public.monthly_rankings — the same row for every subscriber,
+// liquid US stocks by trailing 1-year total return and upserts the result
+// into public.monthly_rankings — the same row for every subscriber,
 // regardless of who holds what or who's on which list.
 //
 // This is deliberately NOT the same table/job as refresh-ticker-metrics:
 //   - refresh-ticker-metrics scores only symbols someone in the app holds,
 //     runs daily, and feeds the in-app Fundamentals tab.
 //   - refresh-monthly-rankings scores a fixed broad-market universe, runs
-//     monthly, and feeds the newsletter (free = unfiltered Top 25, Pro =
-//     filtered to the subscriber's own watchlist_items). It never reads any
-//     user's holdings, cost basis, or watchlist — universe in, ranked
-//     universe out.
+//     monthly, and feeds the newsletter (free = unfiltered Top 25 per cap
+//     tier, Pro = filtered to the subscriber's own watchlist_items). It
+//     never reads any user's holdings, cost basis, or watchlist — universe
+//     in, ranked universe out.
 //
-// UNIVERSE (v1): a hardcoded list of ~100 large/liquid US names spanning
-// sectors, used as a practical stand-in for a real index until a maintained
-// S&P 500 constituents source is wired up. Swap CURATED_UNIVERSE for a real
-// index feed when that's available — nothing else in this file needs to change.
+// UNIVERSE (v1): a hardcoded list of ~100 liquid US names spanning sectors
+// AND market-cap sizes, used as a practical stand-in for a real index until
+// a maintained index-constituents source is wired up. Swap CURATED_UNIVERSE
+// for a real index feed when that's available — nothing else in this file
+// needs to change.
+//
+// CAP TIER: each symbol's large/mid/small bucket is classified dynamically
+// from Finnhub's live `marketCapitalization` (profile2), NOT a static
+// per-symbol label. A company that grows or shrinks between tiers over time
+// is picked up automatically on the next run — no code change needed, and
+// no risk of a stale hardcoded classification quietly going wrong.
 //
 // Metric: Finnhub's `metric.all` payload already includes a trailing 1-year
 // price-return figure (`52WeekPriceReturnDaily`) — using that instead of
@@ -31,40 +38,79 @@ import type { NextRequest } from 'next/server'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-const METHODOLOGY_VERSION = 'v1'
+const METHODOLOGY_VERSION = 'v2-tiered'
 const TOP_N = 25
+
+// Live market-cap thresholds (Finnhub reports marketCapitalization in
+// millions USD) used to bucket each symbol into large/mid/small for this
+// run. Deliberately simple, round numbers — not trying to mirror any
+// specific index provider's exact methodology, just a reasonable, defensible
+// three-way split.
+const LARGE_CAP_MIN_M = 10_000  // >= $10B
+const MID_CAP_MIN_M = 2_000     // $2B–$10B is "mid"; below $2B is "small"
 
 // Finnhub free-tier rate limit is ~60 calls/minute. Each symbol costs 2 calls
 // (profile2 + metric=all), so batches of 25 symbols (50 calls) with a pause
 // between batches stays comfortably under that even with some jitter.
+// At ~100 symbols this runs 4 batches (3 pauses) — comfortably inside the
+// 300s maxDuration above with real margin to spare. If the universe grows
+// meaningfully beyond this (each extra batch of ~25 costs ~70s), re-check
+// that math — or move to Vercel Fluid Compute for a higher ceiling — before
+// just appending more symbols.
 const BATCH_SIZE = 25
 const BATCH_PAUSE_MS = 65_000
 
+// Deliberately NOT split into separate large/mid/small arrays — tier is
+// computed live from market cap (see above), so this is just a broad,
+// sector-spanning candidate pool skewed to include real mid- and small-cap
+// names alongside the mega-caps, not a claim about any symbol's current tier.
 const CURATED_UNIVERSE = [
-  // Technology
-  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'AVGO', 'ORCL', 'ADBE',
-  'CRM', 'CSCO', 'ACN', 'IBM', 'INTC', 'AMD', 'QCOM', 'TXN', 'INTU', 'NOW',
-  'AMAT', 'MU', 'ADI', 'LRCX', 'PANW',
-  // Healthcare
-  'UNH', 'JNJ', 'LLY', 'ABBV', 'MRK', 'PFE', 'TMO', 'ABT', 'DHR', 'BMY',
-  'AMGN', 'GILD', 'CVS', 'CI', 'ISRG', 'VRTX', 'MDT', 'SYK', 'ELV', 'HCA',
-  // Financials
-  'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'SCHW', 'BLK', 'AXP', 'SPGI',
-  'CB', 'PGR', 'MMC', 'USB', 'PNC', 'TFC', 'V', 'MA',
-  // Consumer
-  'WMT', 'PG', 'KO', 'PEP', 'COST', 'MCD', 'NKE', 'SBUX', 'HD', 'LOW',
-  'TGT', 'DIS', 'CMCSA', 'NFLX', 'BKNG',
-  // Industrials
-  'CAT', 'HON', 'UPS', 'RTX', 'BA', 'GE', 'LMT', 'DE', 'UNP', 'MMM',
-  // Energy
+  // Technology — large
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'AVGO', 'ORCL', 'CRM',
+  // Healthcare — large
+  'UNH', 'JNJ', 'LLY', 'ABBV', 'MRK', 'PFE', 'TMO', 'ABT',
+  // Financials — large
+  'JPM', 'BAC', 'WFC', 'GS', 'MS', 'V', 'MA', 'BLK',
+  // Consumer — large
+  'WMT', 'PG', 'KO', 'PEP', 'COST', 'MCD', 'HD', 'NFLX',
+  // Industrials — large
+  'CAT', 'HON', 'UPS', 'RTX', 'BA', 'DE',
+  // Energy — large
   'XOM', 'CVX', 'COP', 'SLB', 'EOG',
-  // Communications / Other
+  // Communications — large
   'T', 'VZ', 'TMUS',
+
+  // Technology — mid
+  'DOCU', 'TWLO', 'HUBS', 'BOX', 'PCOR', 'ESTC', 'FROG', 'PATH', 'BILL',
+  'PAYC', 'MDB', 'DDOG',
+  // Consumer — mid
+  'DECK', 'ULTA', 'FIVE', 'YETI', 'RH', 'WSM', 'CHWY', 'ETSY', 'W', 'TXRH',
+  // Healthcare — mid
+  'PODD', 'TDOC', 'EXAS', 'NBIX', 'HALO', 'RARE', 'SRPT', 'ALNY', 'BMRN', 'JAZZ',
+
+  // Biotech — small
+  'JANX', 'ARWR', 'FOLD', 'KRYS', 'VERV', 'BEAM', 'NTLA',
+  // Technology — small
+  'YEXT', 'PRGS', 'SPSC', 'QLYS', 'VRNT',
+  // Consumer — small
+  'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CAKE',
+  // Industrials — small
+  'TXT', 'CR', 'ITT',
 ]
+
+type CapTier = 'large' | 'mid' | 'small'
+
+function classifyTier(marketCapM: number | null): CapTier | null {
+  if (marketCapM == null) return null
+  if (marketCapM >= LARGE_CAP_MIN_M) return 'large'
+  if (marketCapM >= MID_CAP_MIN_M) return 'mid'
+  return 'small'
+}
 
 interface RawReturn {
   symbol: string
   name: string | null
+  marketCapM: number | null
   priceCurrent: number | null
   trailingReturn1y: number | null
 }
@@ -86,6 +132,7 @@ async function fetchRawReturn(symbol: string, key: string): Promise<RawReturn> {
     return {
       symbol,
       name: profile.name ?? null,
+      marketCapM: typeof profile.marketCapitalization === 'number' ? profile.marketCapitalization : null,
       // Current/historical price isn't fetched separately in v1 — Finnhub's
       // metric=all payload gives the trailing return directly, which is all
       // ranking needs. price_current stays null until a display use needs it.
@@ -93,7 +140,7 @@ async function fetchRawReturn(symbol: string, key: string): Promise<RawReturn> {
       trailingReturn1y: metric['52WeekPriceReturnDaily'] ?? null,
     }
   } catch {
-    return { symbol, name: null, priceCurrent: null, trailingReturn1y: null }
+    return { symbol, name: null, marketCapM: null, priceCurrent: null, trailingReturn1y: null }
   }
 }
 
@@ -119,26 +166,53 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Rank by trailing 1y return, descending. Symbols with no data sort last
-  // and don't get a numeric rank gap — they're simply excluded from ranking.
-  const scored = raw.filter(r => r.trailingReturn1y != null)
-  scored.sort((a, b) => (b.trailingReturn1y! - a.trailingReturn1y!))
+  // Classify tier from live market cap, then rank within each tier by
+  // trailing 1y return, descending. Symbols missing either market cap or
+  // return data are excluded from ranking entirely (no tier, no rank gap).
+  const withTier = raw.map(r => ({ ...r, tier: classifyTier(r.marketCapM) }))
+  const scorable = withTier.filter(r => r.tier != null && r.trailingReturn1y != null)
 
   const periodLabel = new Date().toISOString().slice(0, 7) // 'YYYY-MM'
   const now = new Date().toISOString()
 
-  const rows = scored.map((r, idx) => ({
-    period_label: periodLabel,
-    symbol: r.symbol,
-    company_name: r.name,
-    rank: idx + 1,
-    trailing_return_1y: r.trailingReturn1y,
-    price_current: r.priceCurrent,
-    price_1y_ago: null, // not fetched in v1 — return % comes directly from Finnhub's metric
-    methodology_version: METHODOLOGY_VERSION,
-    computed_at: now,
-    created_at: now,
-  }))
+  const tiers: CapTier[] = ['large', 'mid', 'small']
+  const rows: {
+    period_label: string
+    symbol: string
+    company_name: string | null
+    cap_tier: CapTier
+    rank: number
+    trailing_return_1y: number | null
+    price_current: number | null
+    price_1y_ago: number | null
+    methodology_version: string
+    computed_at: string
+    created_at: string
+  }[] = []
+  const top25ByTier: Record<CapTier, string[]> = { large: [], mid: [], small: [] }
+
+  for (const tier of tiers) {
+    const inTier = scorable
+      .filter(r => r.tier === tier)
+      .sort((a, b) => (b.trailingReturn1y! - a.trailingReturn1y!))
+
+    inTier.forEach((r, idx) => {
+      rows.push({
+        period_label: periodLabel,
+        symbol: r.symbol,
+        company_name: r.name,
+        cap_tier: tier,
+        rank: idx + 1,
+        trailing_return_1y: r.trailingReturn1y,
+        price_current: r.priceCurrent,
+        price_1y_ago: null, // not fetched in v1 — return % comes directly from Finnhub's metric
+        methodology_version: METHODOLOGY_VERSION,
+        computed_at: now,
+        created_at: now,
+      })
+    })
+    top25ByTier[tier] = inTier.slice(0, TOP_N).map(r => r.symbol)
+  }
 
   const { error: upsertError } = await admin
     .from('monthly_rankings')
@@ -151,7 +225,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     period: periodLabel,
     scored: rows.length,
-    unscored: raw.length - scored.length,
-    top25: rows.slice(0, TOP_N).map(r => r.symbol),
+    unscored: raw.length - scorable.length,
+    top25ByTier,
   })
 }

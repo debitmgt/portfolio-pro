@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Holding, Plan, TickerMetrics } from '@/lib/supabase/types'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
@@ -135,9 +136,20 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
             width: 22, height: 22, background: 'var(--accent)', borderRadius: 4,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 13,
-          }}>S</span>
+          }}>O</span>
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio</span>
           {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>↻</span>}
+          <Link
+            href="/disclaimer"
+            title="Ownfolio provides data and analytics, not personalized investment advice — see full disclaimer"
+            style={{
+              fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+              color: 'var(--muted)', background: 'var(--surface-2)', border: '1px solid var(--border)',
+              borderRadius: 3, padding: '3px 8px', marginLeft: 6, whiteSpace: 'nowrap',
+            }}
+          >
+            Data &amp; Analytics — Not Advice
+          </Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{
@@ -1013,7 +1025,7 @@ function WatchlistTab() {
   }
 
   return (
-    <ProTabShell title="Watchlist" description="Tickers you want tracked in your monthly digest email — not your holdings, just symbols you're following. Filters the same Top 25 ranking every subscriber sees down to your list.">
+    <ProTabShell title="Watchlist" description="Tickers you want tracked in your monthly digest email — not your holdings, just symbols you're following. Filters the same large/mid/small-cap Top 25 rankings every subscriber sees down to your list.">
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           value={newSymbol}

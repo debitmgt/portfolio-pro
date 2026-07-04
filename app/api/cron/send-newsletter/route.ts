@@ -4,21 +4,27 @@
 // refresh-monthly-rankings to give that job time to finish). Two audiences,
 // same underlying monthly_rankings data:
 //   - Free: every confirmed, non-unsubscribed newsletter_subscribers row
-//     gets the unfiltered Top 25 (identical content, identical for everyone).
+//     gets three unfiltered Top 25 lists — large/mid/small cap — identical
+//     content, identical for everyone.
 //   - Pro: every profile with plan='pro', newsletter_opt_out=false, and at
 //     least one watchlist_items row gets a digest filtered to their own
-//     watchlist symbols. Selection-based personalization only — this route
-//     never reads holdings, shares, or cost basis.
+//     watchlist symbols, grouped by the same tiers. Selection-based
+//     personalization only — this route never reads holdings, shares, or
+//     cost basis.
+// Both emails also carry an optional editorial spotlight (newsletter_editorial)
+// when a row exists for the period — genuine commentary, not computed data.
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendBatch, type BatchEmail } from '@/lib/email/resend'
-import { renderTop25Email, renderWatchlistDigestEmail } from '@/lib/email/newsletter-templates'
+import { renderMultiTierTop25Email, renderWatchlistDigestEmail } from '@/lib/email/newsletter-templates'
+import type { CapTier, MonthlyRanking } from '@/lib/supabase/types'
 import type { NextRequest } from 'next/server'
 
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 
 const TOP_N = 25
+const TIERS: CapTier[] = ['large', 'mid', 'small']
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
@@ -40,9 +46,23 @@ export async function GET(req: NextRequest) {
   if (!allRankings || allRankings.length === 0) {
     return NextResponse.json({ ok: false, note: `No monthly_rankings rows for ${periodLabel} yet — has refresh-monthly-rankings run this month?` })
   }
-  const top25 = allRankings.slice(0, TOP_N)
 
-  // ── Free tier: Top 25, identical for everyone ──────────────────────────
+  const byTier = {} as Record<CapTier, MonthlyRanking[]>
+  for (const tier of TIERS) {
+    byTier[tier] = (allRankings as MonthlyRanking[])
+      .filter(r => r.cap_tier === tier)
+      .slice(0, TOP_N)
+  }
+
+  // Optional hand-written commentary for this period — omitted entirely if
+  // no row exists yet (no admin UI for this; inserted directly when wanted).
+  const { data: editorial } = await admin
+    .from('newsletter_editorial')
+    .select('*')
+    .eq('period_label', periodLabel)
+    .maybeSingle()
+
+  // ── Free tier: three Top 25 lists, identical for everyone ──────────────
   const { data: freeSubs, error: freeError } = await admin
     .from('newsletter_subscribers')
     .select('*')
@@ -53,7 +73,7 @@ export async function GET(req: NextRequest) {
   }
 
   const freeBatch: BatchEmail[] = (freeSubs ?? []).map(sub => {
-    const rendered = renderTop25Email({ periodLabel, rankings: top25, unsubscribeToken: sub.unsubscribe_token })
+    const rendered = renderMultiTierTop25Email({ periodLabel, byTier, editorial: editorial ?? null, unsubscribeToken: sub.unsubscribe_token })
     return { to: sub.email, subject: rendered.subject, html: rendered.html }
   })
 
@@ -90,8 +110,9 @@ export async function GET(req: NextRequest) {
     }
     const rendered = renderWatchlistDigestEmail({
       periodLabel,
-      allRankings,
+      allRankings: allRankings as MonthlyRanking[],
       watchlistSymbols: symbols,
+      editorial: editorial ?? null,
       unsubscribeToken: profile.newsletter_unsubscribe_token,
     })
     proBatch.push({ to: profile.email, subject: rendered.subject, html: rendered.html })

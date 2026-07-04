@@ -59,15 +59,20 @@ export interface TickerMetrics {
   updated_at: string
 }
 
+export type CapTier = 'large' | 'mid' | 'small'
+
 // Broad-market Top 25 ranking (trailing 1y total return), computed identically
-// for every subscriber on a monthly schedule. Feeds the free newsletter
-// (unfiltered) and the Pro digest (filtered by WatchlistItem symbols). Never
-// derived from any user's holdings. See app/api/cron/refresh-monthly-rankings.
+// for every subscriber on a monthly schedule, ranked separately within each
+// cap_tier (large/mid/small — classified live from market cap, not a static
+// per-symbol label, see app/api/cron/refresh-monthly-rankings). Feeds the
+// free newsletter (unfiltered, one Top 25 per tier) and the Pro digest
+// (filtered by WatchlistItem symbols). Never derived from any user's holdings.
 export interface MonthlyRanking {
   id: string
   period_label: string
   symbol: string
   company_name: string | null
+  cap_tier: CapTier | null
   rank: number
   trailing_return_1y: number | null
   price_current: number | null
@@ -75,6 +80,22 @@ export interface MonthlyRanking {
   methodology_version: string
   computed_at: string
   created_at: string
+}
+
+// Optional, hand-written monthly commentary spotlight (e.g. a "story of the
+// month" highlight on one public company). One row per period_label. This is
+// genuine editorial content, not computed/personalized data — no link to any
+// user's holdings, cost basis, or watchlist. Service-role only; there's no
+// admin UI to write these yet, so a row is inserted directly (Supabase table
+// editor or a one-off SQL statement) each month it's wanted. If no row exists
+// for a period, the newsletter simply omits the spotlight section.
+export interface NewsletterEditorial {
+  period_label: string
+  symbol: string | null
+  headline: string
+  body: string
+  created_at: string
+  updated_at: string
 }
 
 // Public, account-free signups for the free monthly Top 25 email. Written
@@ -149,6 +170,12 @@ export type Database = {
         Row: Flatten<WatchlistItem>
         Insert: Flatten<Partial<WatchlistItem> & { user_id: string; symbol: string }>
         Update: Flatten<Partial<WatchlistItem>>
+        Relationships: []
+      }
+      newsletter_editorial: {
+        Row: Flatten<NewsletterEditorial>
+        Insert: Flatten<Partial<NewsletterEditorial> & { period_label: string; headline: string; body: string }>
+        Update: Flatten<Partial<NewsletterEditorial>>
         Relationships: []
       }
     }
