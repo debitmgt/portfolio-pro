@@ -31,6 +31,13 @@
 // pulling separate historical candles keeps this to one extra call per
 // symbol (reuses the same profile2 + metric=all pattern as
 // refresh-ticker-metrics) and avoids Finnhub's premium-gated candle endpoint.
+//
+// ALSO computes a second, independent ranking from the exact same fetched
+// data (no extra API calls): a combined, non-tiered Top 50 in
+// public.weighted_return_rankings, ranked by a recency-weighted blend of the
+// 13/26/52-week trailing returns Finnhub already returns for free. See the
+// WEIGHTED_* constants below for why this isn't literal Barchart "Weighted
+// Alpha" (that needs paid-tier daily candle data).
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { NextRequest } from 'next/server'
@@ -40,6 +47,23 @@ export const dynamic = 'force-dynamic'
 
 const METHODOLOGY_VERSION = 'v2-tiered'
 const TOP_N = 25
+
+// ── Top 50 "recency-weighted return" (see below) ────────────────────────────
+const WEIGHTED_METHODOLOGY_VERSION = 'v1-recency-weighted'
+const WEIGHTED_TOP_N = 50
+// Recency weighting for the combined (non-tiered) Top 50, in the same spirit
+// as Barchart's "Weighted Alpha" (recent price activity counted more heavily
+// than older activity) — but NOT the same calculation. True Weighted Alpha
+// needs daily price history (Finnhub's /stock/candle), which returned empty
+// against this project's free-tier key when tested directly, consistent with
+// that endpoint being paid-tier-gated for US equities. This uses only the
+// trailing-return fields Finnhub already returns for free in the same
+// metric=all call below (13/26/52-week trailing price return), blended with
+// more weight on the most recent quarter. Weights are disclosed in the UI —
+// see components/NewsletterIssueView.tsx and lib/email/newsletter-templates.ts.
+const WEIGHT_13W = 0.5
+const WEIGHT_26W = 0.3
+const WEIGHT_52W = 0.2
 
 // Live market-cap thresholds (Finnhub reports marketCapitalization in
 // millions USD) used to bucket each symbol into large/mid/small for this
@@ -113,6 +137,8 @@ interface RawReturn {
   marketCapM: number | null
   priceCurrent: number | null
   trailingReturn1y: number | null
+  trailingReturn13w: number | null
+  trailingReturn26w: number | null
 }
 
 function sleep(ms: number) {
@@ -138,9 +164,14 @@ async function fetchRawReturn(symbol: string, key: string): Promise<RawReturn> {
       // ranking needs. price_current stays null until a display use needs it.
       priceCurrent: null,
       trailingReturn1y: metric['52WeekPriceReturnDaily'] ?? null,
+      trailingReturn13w: metric['13WeekPriceReturnDaily'] ?? null,
+      trailingReturn26w: metric['26WeekPriceReturnDaily'] ?? null,
     }
   } catch {
-    return { symbol, name: null, marketCapM: null, priceCurrent: null, trailingReturn1y: null }
+    return {
+      symbol, name: null, marketCapM: null, priceCurrent: null,
+      trailingReturn1y: null, trailingReturn13w: null, trailingReturn26w: null,
+    }
   }
 }
 
@@ -221,11 +252,69 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 })
   }
 
+  // ── Combined Top 50, recency-weighted return ──────────────────────────────
+  // Independent of cap tier — every symbol in the universe with all three
+  // trailing-return windows present is eligible, ranked by the blended score.
+  const weightedScorable = raw.filter(r =>
+    r.trailingReturn13w != null && r.trailingReturn26w != null && r.trailingReturn1y != null
+  )
+
+  const weightedRows: {
+    period_label: string
+    symbol: string
+    company_name: string | null
+    rank: number
+    weighted_score: number
+    return_13w: number | null
+    return_26w: number | null
+    return_52w: number | null
+    price_current: number | null
+    methodology_version: string
+    computed_at: string
+    created_at: string
+  }[] = []
+
+  const rankedWeighted = weightedScorable
+    .map(r => ({
+      ...r,
+      weightedScore:
+        WEIGHT_13W * r.trailingReturn13w! +
+        WEIGHT_26W * r.trailingReturn26w! +
+        WEIGHT_52W * r.trailingReturn1y!,
+    }))
+    .sort((a, b) => b.weightedScore - a.weightedScore)
+    .slice(0, WEIGHTED_TOP_N)
+
+  rankedWeighted.forEach((r, idx) => {
+    weightedRows.push({
+      period_label: periodLabel,
+      symbol: r.symbol,
+      company_name: r.name,
+      rank: idx + 1,
+      weighted_score: r.weightedScore,
+      return_13w: r.trailingReturn13w,
+      return_26w: r.trailingReturn26w,
+      return_52w: r.trailingReturn1y,
+      price_current: r.priceCurrent,
+      methodology_version: WEIGHTED_METHODOLOGY_VERSION,
+      computed_at: now,
+      created_at: now,
+    })
+  })
+
+  const { error: weightedUpsertError } = await admin
+    .from('weighted_return_rankings')
+    .upsert(weightedRows, { onConflict: 'period_label,symbol' })
+  if (weightedUpsertError) {
+    return NextResponse.json({ error: weightedUpsertError.message }, { status: 500 })
+  }
+
   return NextResponse.json({
     ok: true,
     period: periodLabel,
     scored: rows.length,
     unscored: raw.length - scorable.length,
     top25ByTier,
+    top50Weighted: rankedWeighted.map(r => r.symbol),
   })
 }

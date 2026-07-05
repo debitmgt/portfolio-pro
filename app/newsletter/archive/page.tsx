@@ -33,7 +33,7 @@ export default async function NewsletterArchivePage() {
           Newsletter Archive
         </h1>
         <p style={{ color: 'var(--muted)', fontSize: 14.5, marginBottom: 32 }}>
-          Every past issue of the Top 25 — large, mid, and small cap — stays here permanently, whether or not you were subscribed at the time.
+          Every past issue of the Top 25 — large, mid, and small cap — plus the combined Top 50 recency-weighted list, stays here permanently, whether or not you were subscribed at the time.
         </p>
 
         {periods.length === 0 && (

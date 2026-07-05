@@ -98,6 +98,31 @@ export interface NewsletterEditorial {
   updated_at: string
 }
 
+// Combined (non-tiered) Top 50, ranked by a recency-weighted blend of
+// trailing 13/26/52-week returns (0.5/0.3/0.2), computed identically for
+// every subscriber alongside the existing tiered Top 25 lists — same
+// "compute once, filter never" pattern as MonthlyRanking. Deliberately not
+// literal Barchart "Weighted Alpha": that requires daily price history via
+// Finnhub's /stock/candle, which is unavailable on the current free-tier
+// key. This uses only the trailing-return fields Finnhub already returns
+// for free (see app/api/cron/refresh-monthly-rankings), weighting more
+// recent quarters more heavily — same directional idea, no added cost.
+export interface WeightedReturnRanking {
+  id: string
+  period_label: string
+  symbol: string
+  company_name: string | null
+  rank: number
+  weighted_score: number | null
+  return_13w: number | null
+  return_26w: number | null
+  return_52w: number | null
+  price_current: number | null
+  methodology_version: string
+  computed_at: string
+  created_at: string
+}
+
 // Public, account-free signups for the free monthly Top 25 email. Written
 // only via server routes using the service-role client.
 export interface NewsletterSubscriber {
@@ -176,6 +201,12 @@ export type Database = {
         Row: Flatten<NewsletterEditorial>
         Insert: Flatten<Partial<NewsletterEditorial> & { period_label: string; headline: string; body: string }>
         Update: Flatten<Partial<NewsletterEditorial>>
+        Relationships: []
+      }
+      weighted_return_rankings: {
+        Row: Flatten<WeightedReturnRanking>
+        Insert: Flatten<Partial<WeightedReturnRanking> & { period_label: string; symbol: string; rank: number; methodology_version: string; computed_at: string }>
+        Update: Flatten<Partial<WeightedReturnRanking>>
         Relationships: []
       }
     }

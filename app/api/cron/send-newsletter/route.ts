@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendBatch, type BatchEmail } from '@/lib/email/resend'
 import { renderMultiTierTop25Email, renderWatchlistDigestEmail } from '@/lib/email/newsletter-templates'
-import type { CapTier, MonthlyRanking } from '@/lib/supabase/types'
+import type { CapTier, MonthlyRanking, WeightedReturnRanking } from '@/lib/supabase/types'
 import type { NextRequest } from 'next/server'
 
 export const maxDuration = 120
@@ -62,6 +62,15 @@ export async function GET(req: NextRequest) {
     .eq('period_label', periodLabel)
     .maybeSingle()
 
+  // Combined (non-tiered) Top 50, recency-weighted — optional too, since
+  // refresh-monthly-rankings only started populating this table going
+  // forward. Missing rows just mean the email skips that section.
+  const { data: weightedTop50 } = await admin
+    .from('weighted_return_rankings')
+    .select('*')
+    .eq('period_label', periodLabel)
+    .order('rank', { ascending: true })
+
   // ── Free tier: three Top 25 lists, identical for everyone ──────────────
   const { data: freeSubs, error: freeError } = await admin
     .from('newsletter_subscribers')
@@ -73,7 +82,13 @@ export async function GET(req: NextRequest) {
   }
 
   const freeBatch: BatchEmail[] = (freeSubs ?? []).map(sub => {
-    const rendered = renderMultiTierTop25Email({ periodLabel, byTier, editorial: editorial ?? null, unsubscribeToken: sub.unsubscribe_token })
+    const rendered = renderMultiTierTop25Email({
+      periodLabel,
+      byTier,
+      weightedTop50: (weightedTop50 ?? []) as WeightedReturnRanking[],
+      editorial: editorial ?? null,
+      unsubscribeToken: sub.unsubscribe_token,
+    })
     return { to: sub.email, subject: rendered.subject, html: rendered.html }
   })
 
@@ -111,6 +126,7 @@ export async function GET(req: NextRequest) {
     const rendered = renderWatchlistDigestEmail({
       periodLabel,
       allRankings: allRankings as MonthlyRanking[],
+      weightedTop50: (weightedTop50 ?? []) as WeightedReturnRanking[],
       watchlistSymbols: symbols,
       editorial: editorial ?? null,
       unsubscribeToken: profile.newsletter_unsubscribe_token,

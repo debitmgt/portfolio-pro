@@ -48,7 +48,7 @@ export default function NewsletterSignupForm() {
     <div style={{ textAlign: 'center', maxWidth: 420 }}>
       <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Just want the free newsletter?</h3>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
-        The Ownfolio Top 25 — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap, once a month. No account needed.
+        The Ownfolio Top 25 — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap, plus a combined Top 50 recency-weighted list, once a month. No account needed.
       </p>
       <form onSubmit={submit} style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
         <input

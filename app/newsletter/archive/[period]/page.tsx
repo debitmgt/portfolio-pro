@@ -19,7 +19,7 @@ export default async function NewsletterArchiveIssuePage({
   const periodLabel = params.period
   const supabase = createServerClient()
 
-  const [{ data: rankings }, { data: editorial }] = await Promise.all([
+  const [{ data: rankings }, { data: editorial }, { data: weightedTop50 }] = await Promise.all([
     supabase
       .from('monthly_rankings')
       .select('*')
@@ -30,6 +30,11 @@ export default async function NewsletterArchiveIssuePage({
       .select('*')
       .eq('period_label', periodLabel)
       .maybeSingle(),
+    supabase
+      .from('weighted_return_rankings')
+      .select('*')
+      .eq('period_label', periodLabel)
+      .order('rank', { ascending: true }),
   ])
 
   if (!rankings || rankings.length === 0) notFound()
@@ -43,7 +48,12 @@ export default async function NewsletterArchiveIssuePage({
         <Link href="/newsletter/archive" style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}>← All issues</Link>
       </div>
 
-      <NewsletterIssueView periodLabel={periodLabel} rankings={rankings} editorial={editorial ?? null} />
+      <NewsletterIssueView
+        periodLabel={periodLabel}
+        rankings={rankings}
+        weightedTop50={weightedTop50 ?? []}
+        editorial={editorial ?? null}
+      />
 
       <div style={{ width: '100%', maxWidth: 720, marginTop: 36, paddingTop: 28, borderTop: '1px solid var(--border)' }}>
         <p style={{ fontSize: 13.5, color: 'var(--muted)', marginBottom: 12 }}>
