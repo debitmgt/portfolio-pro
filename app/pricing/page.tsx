@@ -5,6 +5,7 @@ import DisclaimerFooter from '@/components/DisclaimerFooter'
 import MarketTicker from '@/components/MarketTicker'
 import MarketNewsFeed from '@/components/MarketNewsFeed'
 import NewsletterSignupForm from '@/components/NewsletterSignupForm'
+import HeroBoston from '@/components/HeroBoston'
 
 export default function PricingPage({ searchParams }: { searchParams?: { paused?: string } }) {
   return (
@@ -13,6 +14,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
       alignItems: 'center',
       background: 'var(--bg)',
     }}>
+      <HeroBoston />
       <MarketTicker />
 
       {/* Two-column layout: news feed occupies the left third on wide screens
@@ -33,18 +35,6 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
           flex: '2 1 480px', minWidth: 320,
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
-            <div style={{
-              width: 44, height: 44, background: 'var(--accent)', borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontWeight: 800, fontSize: 22, margin: '0 auto 16px',
-            }}>O</div>
-            <h1 style={{ fontSize: 40, fontWeight: 800, marginBottom: 10, letterSpacing: '-1px' }}>Ownfolio</h1>
-            <p style={{ color: 'var(--muted)', fontSize: 17 }}>
-              Real-time data for long-term owners.
-            </p>
-          </div>
-
           {searchParams?.paused === '1' && (
             <div style={{
               maxWidth: 480, marginBottom: 28, padding: '12px 18px', borderRadius: 6,
@@ -96,7 +86,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
+          <div id="pricing-cards" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
             <PricingCard
               name={PLANS.free.name}
               price="$0"

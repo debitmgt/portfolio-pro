@@ -1,0 +1,66 @@
+<svg width="1600" height="500" viewBox="0 0 1600 500" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#14161c"/>
+<stop offset="55%" stop-color="#1c1710"/>
+<stop offset="100%" stop-color="#3a2210"/>
+</linearGradient>
+<radialGradient id="glow" cx="50%" cy="100%" r="70%">
+<stop offset="0%" stop-color="#ff6a00" stop-opacity="0.55"/>
+<stop offset="55%" stop-color="#ff6a00" stop-opacity="0.15"/>
+<stop offset="100%" stop-color="#ff6a00" stop-opacity="0"/>
+</radialGradient>
+<linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0%" stop-color="#241a12"/>
+<stop offset="100%" stop-color="#0c0d11"/>
+</linearGradient>
+</defs>
+<rect x="0" y="0" width="1600" height="500" fill="url(#sky)"/>
+<circle cx="847" cy="350" r="224" fill="url(#glow)"/>
+<g fill="#1f2229">
+<rect x="70" y="343" width="61" height="118"/>
+<rect x="141" y="273" width="47" height="188"/>
+<rect x="198" y="308" width="71" height="153"/>
+<rect x="278" y="238" width="52" height="223"/>
+<rect x="339" y="296" width="61" height="165"/>
+<rect x="410" y="332" width="42" height="129"/>
+<rect x="461" y="249" width="56" height="212"/>
+<rect x="527" y="320" width="47" height="141"/>
+</g>
+<g fill="#1f2229">
+<rect x="1105" y="320" width="52" height="141"/>
+<rect x="1166" y="226" width="66" height="235"/>
+<rect x="1243" y="296" width="47" height="165"/>
+<rect x="1300" y="261" width="61" height="200"/>
+<rect x="1370" y="343" width="42" height="118"/>
+<rect x="1421" y="285" width="56" height="176"/>
+<rect x="1486" y="332" width="42" height="129"/>
+</g>
+<g stroke="#0b0c10" stroke-width="1.5">
+<line x1="708" y1="141" x2="616" y2="435"/>
+<line x1="708" y1="141" x2="651" y2="435"/>
+<line x1="708" y1="141" x2="686" y2="435"/>
+<line x1="708" y1="141" x2="722" y2="435"/>
+<line x1="708" y1="141" x2="757" y2="435"/>
+<line x1="708" y1="141" x2="792" y2="435"/>
+<line x1="991" y1="165" x2="899" y2="435"/>
+<line x1="991" y1="165" x2="934" y2="435"/>
+<line x1="991" y1="165" x2="969" y2="435"/>
+<line x1="991" y1="165" x2="1005" y2="435"/>
+<line x1="991" y1="165" x2="1040" y2="435"/>
+<line x1="991" y1="165" x2="1075" y2="435"/>
+</g>
+<rect x="588" y="428" width="518" height="12" fill="#0b0c10"/>
+<g fill="#0b0c10">
+<rect x="691" y="235" width="33" height="205"/>
+<polygon points="691,235 708,141 725,235"/>
+<rect x="974" y="259" width="33" height="181"/>
+<polygon points="974,259 991,165 1008,259"/>
+</g>
+<rect x="0" y="440" width="1600" height="60" fill="url(#water)"/>
+<g stroke="#ff6a00" stroke-opacity="0.18" stroke-width="1.5">
+<line x1="424" y1="459" x2="1271" y2="459"/>
+<line x1="283" y1="476" x2="1412" y2="476"/>
+<line x1="518" y1="492" x2="1177" y2="492"/>
+</g>
+</svg>
