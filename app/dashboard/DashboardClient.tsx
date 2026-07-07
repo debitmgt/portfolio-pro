@@ -40,6 +40,14 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Edit-holding form state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editShares, setEditShares] = useState('')
+  const [editCost, setEditCost] = useState('')
+  const [editTrail, setEditTrail] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
   // Show upgrade banner if returning from Stripe
   useEffect(() => {
     if (params.get('upgraded') === '1') {
@@ -106,6 +114,46 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   async function removeHolding(id: string) {
     await fetch(`/api/holdings?id=${id}`, { method: 'DELETE' })
     setHoldings(prev => prev.filter(h => h.id !== id))
+  }
+
+  // ─── Edit holding ─────────────────────────────────────────────────────────
+  function startEditHolding(h: Holding) {
+    setEditingId(h.id)
+    setEditShares(String(h.shares))
+    setEditCost(String(h.cost_basis))
+    setEditTrail(String(h.trail_pct))
+    setEditError('')
+  }
+
+  function cancelEditHolding() {
+    setEditingId(null)
+    setEditError('')
+  }
+
+  async function saveEditHolding(id: string) {
+    setEditError('')
+    if (!editShares || !editCost) { setEditError('Shares and cost basis are required'); return }
+    if (isNaN(Number(editShares)) || Number(editShares) <= 0) { setEditError('Shares must be a positive number'); return }
+    if (isNaN(Number(editCost)) || Number(editCost) <= 0) { setEditError('Cost basis must be a positive number'); return }
+    setEditSaving(true)
+    const res = await fetch(`/api/holdings?id=${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shares: parseFloat(editShares),
+        cost_basis: parseFloat(editCost),
+        trail_pct: parseFloat(editTrail) || 8,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setEditError(data.error ?? 'Failed to save')
+      setEditSaving(false)
+      return
+    }
+    setHoldings(prev => prev.map(h => (h.id === id ? data : h)))
+    setEditingId(null)
+    setEditSaving(false)
   }
 
   // ─── Sign out ─────────────────────────────────────────────────────────────
@@ -224,6 +272,11 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
             newCost={newCost} setNewCost={setNewCost}
             newTrail={newTrail} setNewTrail={setNewTrail}
             formError={formError} saving={saving} onSave={addHolding} freeLimit={FREE_LIMIT}
+            editingId={editingId} onStartEdit={startEditHolding} onCancelEdit={cancelEditHolding}
+            editShares={editShares} setEditShares={setEditShares}
+            editCost={editCost} setEditCost={setEditCost}
+            editTrail={editTrail} setEditTrail={setEditTrail}
+            editError={editError} editSaving={editSaving} onSaveEdit={saveEditHolding}
           />
         )}
 
@@ -273,7 +326,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 }
 
 // ─── Tracker Tab ──────────────────────────────────────────────────────────────
-function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit }: {
+function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit, editingId, onStartEdit, onCancelEdit, editShares, setEditShares, editCost, setEditCost, editTrail, setEditTrail, editError, editSaving, onSaveEdit }: {
   holdings: Holding[]; prices: PriceMap; plan: Plan
   totalValue: number; totalCost: number; totalGain: number; totalPct: number
   onAdd: () => void; onRemove: (id: string) => void
@@ -283,6 +336,11 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   newCost: string; setNewCost: (v: string) => void
   newTrail: string; setNewTrail: (v: string) => void
   formError: string; saving: boolean; onSave: () => void; freeLimit: number
+  editingId: string | null; onStartEdit: (h: Holding) => void; onCancelEdit: () => void
+  editShares: string; setEditShares: (v: string) => void
+  editCost: string; setEditCost: (v: string) => void
+  editTrail: string; setEditTrail: (v: string) => void
+  editError: string; editSaving: boolean; onSaveEdit: (id: string) => void
 }) {
   return (
     <div>
@@ -323,6 +381,43 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
               const pct   = gain != null && h.cost_basis ? (gain / (h.cost_basis * h.shares)) * 100 : null
               const stopPrice = price != null ? price * (1 - h.trail_pct / 100) : null
               const atRisk = stopPrice != null && h.cost_basis > stopPrice
+              const isEditing = editingId === h.id
+
+              if (isEditing) {
+                return (
+                  <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}>{h.symbol}</td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editShares} onChange={e => setEditShares(e.target.value)} style={{ width: 80 }} />
+                    </td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editCost} onChange={e => setEditCost(e.target.value)} style={{ width: 90 }} />
+                    </td>
+                    <td style={{ padding: '12px 16px' }} colSpan={2}>
+                      {editError && <span style={{ color: 'var(--red)', fontSize: 12 }}>{editError}</span>}
+                    </td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editTrail} onChange={e => setEditTrail(e.target.value)} style={{ width: 60 }} />%
+                    </td>
+                    <td style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => onSaveEdit(h.id)}
+                        disabled={editSaving}
+                        className="btn-primary"
+                        style={{ padding: '3px 10px', fontSize: 12 }}
+                      >
+                        {editSaving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={onCancelEdit}
+                        style={{ background: 'transparent', color: 'var(--muted)', padding: '3px 10px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                )
+              }
 
               return (
                 <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -340,7 +435,10 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
                       {atRisk && ' ⚠️'}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 16px' }}>
+                  <td style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
+                    <button onClick={() => onStartEdit(h)} style={{ background: 'transparent', color: 'var(--accent)', padding: '3px 9px', border: '1px solid var(--accent)', borderRadius: 4, fontSize: 12 }}>
+                      Edit
+                    </button>
                     <button onClick={() => onRemove(h.id)} style={{ background: 'transparent', color: 'var(--red)', padding: '3px 9px', border: '1px solid var(--red)', borderRadius: 4, fontSize: 12 }}>
                       Remove
                     </button>
@@ -803,9 +901,81 @@ function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string;
         )}
       </div>
 
+      <EarningsHistory symbol={symbol} />
+
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
         Data from Finnhub · Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
       </p>
+    </div>
+  )
+}
+
+// ─── Earnings history (last ~4 quarters, ≈1 year) ────────────────────────────
+// Actual vs. estimated EPS per quarter, straight from Finnhub — no commentary
+// or scoring layered on top, same informational framing as the News tab.
+interface EarningsQuarter {
+  period: string
+  quarter: number
+  year: number
+  actual: number | null
+  estimate: number | null
+  surprisePercent: number | null
+}
+
+function EarningsHistory({ symbol }: { symbol: string }) {
+  const [items, setItems] = useState<EarningsQuarter[] | null>(null)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(false)
+    fetch(`/api/finnhub?type=earnings&symbol=${encodeURIComponent(symbol)}`)
+      .then(res => {
+        if (!res.ok) throw new Error('failed')
+        return res.json()
+      })
+      .then((d: { items: EarningsQuarter[] }) => { if (!cancelled) setItems(d.items) })
+      .catch(() => { if (!cancelled) setError(true) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [symbol])
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+        Earnings — Last 4 Quarters
+      </div>
+      {loading ? (
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading…</p>
+      ) : error ? (
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Couldn't load earnings history for {symbol}.</p>
+      ) : !items || items.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>No earnings history available for {symbol}.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              {['Quarter', 'Est. EPS', 'Actual EPS', 'Surprise'].map(h => (
+                <th key={h} style={{ padding: '4px 8px 4px 0', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(q => (
+              <tr key={q.period}>
+                <td style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Q{q.quarter} {q.year}</td>
+                <td style={{ padding: '4px 8px 4px 0' }}>{q.estimate != null ? `$${q.estimate.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '4px 8px 4px 0' }}>{q.actual != null ? `$${q.actual.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '4px 8px 4px 0', color: q.surprisePercent == null ? 'var(--muted)' : q.surprisePercent >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                  {q.surprisePercent != null ? `${q.surprisePercent >= 0 ? '+' : ''}${q.surprisePercent.toFixed(1)}%` : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }
@@ -1058,7 +1228,7 @@ function WatchlistTab() {
       )}
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 16, lineHeight: 1.6 }}>
-        Up to 25 symbols. This list only controls which rows appear in your monthly email — it doesn't affect your Tracker holdings or any other tab. Manage your email delivery preference from account settings.
+                Up to 25 symbols. This list only controls which rows appear in your monthly email — it doesn't affect your Tracker holdings or any other tab. Manage your email delivery preference from account settings.
       </p>
     </ProTabShell>
   )
@@ -1148,3 +1318,4 @@ function Callout({ type, title, children }: { type: 'warning' | 'info' | 'danger
     </div>
   )
 }
+ 

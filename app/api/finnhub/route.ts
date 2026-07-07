@@ -96,6 +96,48 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ─── Earnings history (quarterly EPS actual vs. estimate) ─────────────────
+  // /stock/earnings is still on Finnhub's free tier. It returns the company's
+  // most recent quarters of EPS surprises; we keep the last 4 (~1 year).
+  // Cached 24hrs since this only changes once a quarter, right after earnings.
+  if (type === 'earnings') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(symbol)}&token=${key}`,
+        { next: { revalidate: 86400 } }
+      )
+      if (!res.ok) return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 502 })
+
+      const raw: Array<{
+        actual: number | null
+        estimate: number | null
+        period: string
+        quarter: number
+        surprisePercent: number | null
+        year: number
+      }> = await res.json()
+
+      const items = (Array.isArray(raw) ? raw : [])
+        .sort((a, b) => new Date(b.period).getTime() - new Date(a.period).getTime())
+        .slice(0, 4)   // last 4 quarters ≈ 1 year of history
+        .map(q => ({
+          period: q.period,
+          quarter: q.quarter,
+          year: q.year,
+          actual: q.actual,
+          estimate: q.estimate,
+          surprisePercent: q.surprisePercent,
+        }))
+
+      return NextResponse.json({ symbol, items })
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 502 })
+    }
+  }
+
   // ─── Live quotes ───────────────────────────────────────────────────────────
   const symbols = searchParams.get('symbols')?.split(',').map(s => s.trim()).filter(Boolean) ?? []
 
