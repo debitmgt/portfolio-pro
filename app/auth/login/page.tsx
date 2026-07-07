@@ -2,10 +2,25 @@
 // app/auth/login/page.tsx
 export const dynamic = 'force-dynamic'
 
-import { useState, Suspense } from 'react'
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Script from 'next/script'
 import { createClient } from '@/lib/supabase/client'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
+
+// Cloudflare Turnstile widget IDs are opaque strings returned by window.turnstile.render().
+// The global `turnstile` object is injected by the script tag below, so it's typed loosely
+// here rather than pulling in a separate .d.ts file for one small integration.
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: Record<string, unknown>) => string
+      reset: (widgetId?: string) => void
+    }
+  }
+}
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 function LoginForm() {
   const supabase = createClient()
@@ -23,10 +38,38 @@ function LoginForm() {
   const [sent, setSent] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
 
+  // Bot protection (Supabase Auth + Cloudflare Turnstile) — gates signup, sign-in, and
+  // password reset so free-tier email/db resources can't be burned by scripted signups.
+  // Requires NEXT_PUBLIC_TURNSTILE_SITE_KEY to be set and CAPTCHA protection enabled with
+  // the matching secret key in Supabase Dashboard → Authentication → Bot and Abuse Protection.
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | undefined>(undefined)
+  const [turnstileReady, setTurnstileReady] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+
+  useEffect(() => {
+    if (!turnstileReady || !turnstileRef.current || !window.turnstile || widgetIdRef.current) return
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token: string) => setCaptchaToken(token),
+      'expired-callback': () => setCaptchaToken(''),
+      'error-callback': () => setCaptchaToken(''),
+    })
+  }, [turnstileReady])
+
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken('')
+    if (window.turnstile && widgetIdRef.current) window.turnstile.reset(widgetIdRef.current)
+  }, [])
+
   async function handleSubmit() {
     setError('')
     if (mode === 'signup' && !acknowledged) {
       setError('Please confirm you understand Ownfolio is data and analytics, not personalized advice, before creating an account.')
+      return
+    }
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError('Please complete the verification check below.')
       return
     }
     setLoading(true)
@@ -36,6 +79,7 @@ function LoginForm() {
           email,
           password,
           options: {
+            captchaToken: captchaToken || undefined,
             emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
               plan ? `/api/stripe/checkout?plan=${plan}` : redirectTo
             )}`,
@@ -44,7 +88,11 @@ function LoginForm() {
         if (error) throw error
         setSent(true)
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: { captchaToken: captchaToken || undefined },
+        })
         if (error) throw error
         if (plan) {
           window.location.href = `/api/stripe/checkout?plan=${plan}`
@@ -57,6 +105,7 @@ function LoginForm() {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
       setLoading(false)
+      resetCaptcha()
     }
   }
 
@@ -77,6 +126,13 @@ function LoginForm() {
 
   return (
     <AuthShell>
+      {TURNSTILE_SITE_KEY && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onLoad={() => setTurnstileReady(true)}
+        />
+      )}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 4 }}>
           <span style={{
@@ -131,6 +187,10 @@ function LoginForm() {
             </a>.
           </span>
         </label>
+      )}
+
+      {TURNSTILE_SITE_KEY && (
+        <div ref={turnstileRef} style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }} />
       )}
 
       {error && (
