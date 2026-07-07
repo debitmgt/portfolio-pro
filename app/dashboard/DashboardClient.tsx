@@ -40,6 +40,14 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Edit-holding form state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editShares, setEditShares] = useState('')
+  const [editCost, setEditCost] = useState('')
+  const [editTrail, setEditTrail] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
   // Show upgrade banner if returning from Stripe
   useEffect(() => {
     if (params.get('upgraded') === '1') {
@@ -106,6 +114,42 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   async function removeHolding(id: string) {
     await fetch(`/api/holdings?id=${id}`, { method: 'DELETE' })
     setHoldings(prev => prev.filter(h => h.id !== id))
+  }
+
+  // ─── Edit holding ─────────────────────────────────────────────────────────
+  function startEdit(h: Holding) {
+    setEditingId(h.id)
+    setEditShares(String(h.shares))
+    setEditCost(String(h.cost_basis))
+    setEditTrail(String(h.trail_pct))
+    setEditError('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError('')
+  }
+
+  async function saveEdit(id: string) {
+    setEditError('')
+    if (!editShares || !editCost) { setEditError('Shares and cost basis are required'); return }
+    if (isNaN(Number(editShares)) || Number(editShares) <= 0) { setEditError('Shares must be a positive number'); return }
+    if (isNaN(Number(editCost)) || Number(editCost) <= 0) { setEditError('Cost basis must be a positive number'); return }
+    setEditSaving(true)
+    const res = await fetch(`/api/holdings?id=${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shares: parseFloat(editShares),
+        cost_basis: parseFloat(editCost),
+        trail_pct: parseFloat(editTrail) || 8,
+      }),
+    })
+    const data = await res.json()
+    setEditSaving(false)
+    if (!res.ok) { setEditError(data.error ?? 'Failed to save'); return }
+    setHoldings(prev => prev.map(h => (h.id === id ? data : h)))
+    setEditingId(null)
   }
 
   // ─── Sign out ─────────────────────────────────────────────────────────────
@@ -224,6 +268,11 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
             newCost={newCost} setNewCost={setNewCost}
             newTrail={newTrail} setNewTrail={setNewTrail}
             formError={formError} saving={saving} onSave={addHolding} freeLimit={FREE_LIMIT}
+            editingId={editingId} onStartEdit={startEdit} onCancelEdit={cancelEdit} onSaveEdit={saveEdit}
+            editShares={editShares} setEditShares={setEditShares}
+            editCost={editCost} setEditCost={setEditCost}
+            editTrail={editTrail} setEditTrail={setEditTrail}
+            editError={editError} editSaving={editSaving}
           />
         )}
 
@@ -273,7 +322,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 }
 
 // ─── Tracker Tab ──────────────────────────────────────────────────────────────
-function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit }: {
+function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit, editingId, onStartEdit, onCancelEdit, onSaveEdit, editShares, setEditShares, editCost, setEditCost, editTrail, setEditTrail, editError, editSaving }: {
   holdings: Holding[]; prices: PriceMap; plan: Plan
   totalValue: number; totalCost: number; totalGain: number; totalPct: number
   onAdd: () => void; onRemove: (id: string) => void
@@ -283,6 +332,11 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   newCost: string; setNewCost: (v: string) => void
   newTrail: string; setNewTrail: (v: string) => void
   formError: string; saving: boolean; onSave: () => void; freeLimit: number
+  editingId: string | null; onStartEdit: (h: Holding) => void; onCancelEdit: () => void; onSaveEdit: (id: string) => void
+  editShares: string; setEditShares: (v: string) => void
+  editCost: string; setEditCost: (v: string) => void
+  editTrail: string; setEditTrail: (v: string) => void
+  editError: string; editSaving: boolean
 }) {
   return (
     <div>
@@ -323,6 +377,38 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
               const pct   = gain != null && h.cost_basis ? (gain / (h.cost_basis * h.shares)) * 100 : null
               const stopPrice = price != null ? price * (1 - h.trail_pct / 100) : null
               const atRisk = stopPrice != null && h.cost_basis > stopPrice
+              const isEditing = editingId === h.id
+
+              if (isEditing) {
+                return (
+                  <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}>{h.symbol}</td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editShares} onChange={e => setEditShares(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 90 }} />
+                    </td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editCost} onChange={e => setEditCost(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 90 }} />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>{price != null ? `$${price.toFixed(2)}` : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{value != null ? `$${value.toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>—</td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editTrail} onChange={e => setEditTrail(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 60 }} />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn-primary" onClick={() => onSaveEdit(h.id)} disabled={editSaving} style={{ padding: '3px 10px', fontSize: 12 }}>
+                          {editSaving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button className="btn-outline" onClick={onCancelEdit} style={{ padding: '3px 10px', fontSize: 12 }}>
+                          Cancel
+                        </button>
+                      </div>
+                      {editError && <p style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{editError}</p>}
+                    </td>
+                  </tr>
+                )
+              }
 
               return (
                 <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -341,9 +427,14 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    <button onClick={() => onRemove(h.id)} style={{ background: 'transparent', color: 'var(--red)', padding: '3px 9px', border: '1px solid var(--red)', borderRadius: 4, fontSize: 12 }}>
-                      Remove
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => onStartEdit(h)} style={{ background: 'transparent', color: 'var(--accent)', padding: '3px 9px', border: '1px solid var(--accent)', borderRadius: 4, fontSize: 12 }}>
+                        Edit
+                      </button>
+                      <button onClick={() => onRemove(h.id)} style={{ background: 'transparent', color: 'var(--red)', padding: '3px 9px', border: '1px solid var(--red)', borderRadius: 4, fontSize: 12 }}>
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
