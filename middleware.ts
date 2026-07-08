@@ -45,8 +45,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Redirect signed-in users away from auth pages
-  if (pathname.startsWith('/auth') && user) {
+  // Redirect signed-in users away from auth pages — except reset-password,
+  // which relies on the temporary session created by clicking a password-
+  // recovery email link. A signed-in user landing there is exactly the
+  // expected case, not someone who should be bounced to /dashboard.
+  if (pathname.startsWith('/auth') && user && pathname !== '/auth/reset-password') {
     const dashUrl = req.nextUrl.clone()
     dashUrl.pathname = '/dashboard'
     return NextResponse.redirect(dashUrl)

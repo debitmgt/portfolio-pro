@@ -157,7 +157,14 @@ function LoginForm() {
         autoComplete="email"
       />
 
-      <label style={labelStyle}>Password</label>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+        <label style={{ ...labelStyle, marginBottom: 0 }}>Password</label>
+        {mode === 'login' && (
+          <a href="/auth/forgot-password" className="link" style={{ fontSize: 12.5 }}>
+            Forgot password?
+          </a>
+        )}
+      </div>
       <input
         type="password"
         value={password}
