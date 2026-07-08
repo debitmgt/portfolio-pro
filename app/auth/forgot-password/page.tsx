@@ -58,6 +58,25 @@ export default function ForgotPasswordPage() {
     }
     setLoading(true)
     try {
+      // NOTE: this redirectTo only matters if the "Reset Password" email template
+      // in Supabase Dashboard -> Authentication -> Email Templates still uses the
+      // default {{ .ConfirmationURL }} link. That link points at Supabase's own
+      // hosted /verify endpoint, which is a plain GET and consumes the one-time
+      // recovery token immediately — including when Gmail/Outlook's link-scanning
+      // bots pre-fetch it straight out of the inbox, before a human ever clicks it.
+      // That's confirmed happening in the auth logs (2026-07-08): Google IPs hit
+      // /verify and burn the token, then the real click gets "Email link is
+      // invalid or has expired" and silently falls back to /auth/login, where a
+      // saved browser password logs the user back in with their OLD password —
+      // no error, no new password set, no indication anything went wrong.
+      //
+      // Fix (needs a one-time manual change in the Supabase Dashboard, not just
+      // code — there's no API for editing email templates from here): replace
+      // the template's link with
+      //   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/reset-password
+      // app/auth/confirm/page.tsx requires an actual button click before it
+      // calls verifyOtp(), so scanner pre-fetches (which only GET the page,
+      // never click anything) can't burn the token anymore.
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         captchaToken: captchaToken || undefined,
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/auth/reset-password')}`,
