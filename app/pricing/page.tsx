@@ -123,23 +123,31 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
               disabled={!CHECKOUT_ENABLED}
             />
           </div>
+        </div>
+      </div>
 
-          <p style={{ marginTop: 44, color: 'var(--muted)', fontSize: 13 }}>
-            Already have an account?{' '}
-            <Link href="/auth/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link>
-          </p>
+      {/* Full-width footer block — centered on the whole page rather than
+          nested in the two-column layout above, so it isn't offset by the
+          sticky news feed sidebar. */}
+      <div style={{
+        width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', padding: '0 24px 48px',
+      }}>
+        <p style={{ marginTop: 44, color: 'var(--muted)', fontSize: 13 }}>
+          Already have an account?{' '}
+          <Link href="/auth/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign in</Link>
+        </p>
 
-          <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 12, opacity: 0.6 }}>
-            Powered by Stripe · Cancel anytime · No hidden fees
-          </p>
+        <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 12, opacity: 0.6 }}>
+          Powered by Stripe · Cancel anytime · No hidden fees
+        </p>
 
-          <div id="newsletter" style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
-            <NewsletterSignupForm />
-          </div>
+        <div id="newsletter" style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <NewsletterSignupForm />
+        </div>
 
-          <div style={{ marginTop: 32, maxWidth: 560 }}>
-            <DisclaimerFooter />
-          </div>
+        <div style={{ marginTop: 32, maxWidth: 560 }}>
+          <DisclaimerFooter />
         </div>
       </div>
     </main>
