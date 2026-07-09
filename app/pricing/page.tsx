@@ -25,12 +25,10 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
       {/* Two-column layout: news feed occupies the left third on wide screens
           (sticky, so it stays in view and keeps drawing the eye as an
           anonymous visitor scrolls) and stacks above the main content on
-          narrow screens via flex-wrap. Centered vertically against the news
-          feed's height, since the main column is short now that pricing
-          cards and the footer moved to their own full-width rows. */}
+          narrow screens via flex-wrap. */}
       <div style={{
         width: '100%', maxWidth: 1240, margin: '0 auto', padding: '48px 24px',
-        display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'center', flex: 1,
+        display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'flex-start', flex: 1,
       }}>
         <div style={{ flex: '1 1 320px', minWidth: 280 }}>
           <div style={{ position: 'sticky', top: 24 }}>
@@ -92,46 +90,43 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
               </ul>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Full-width pricing row — pulled out of the two-column layout above
-          so it isn't squeezed by the sticky news-feed sidebar. Three 300px
-          cards + gaps need ~950px; the main column there only had ~770px,
-          so the third card wrapped to its own row. Full page width (1152px
-          inside the 1240px max, minus padding) fits all three side by side. */}
-      <div style={{ width: '100%', maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'center' }}>
-        <div id="pricing-cards" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
-          <PricingCard
-            name={PLANS.free.name}
-            price="$0"
-            period="forever"
-            features={PLANS.free.features}
-            cta="Get started free"
-            ctaHref="/auth/login"
-            highlight={false}
-          />
-          <PricingCard
-            name={PLANS.monthly.name}
-            price={`$${PLANS.monthly.price}`}
-            period="/ month"
-            features={PLANS.monthly.features}
-            cta={CHECKOUT_ENABLED ? 'Start Pro Monthly' : 'Coming soon'}
-            ctaHref="/auth/login?plan=monthly"
-            highlight
-            disabled={!CHECKOUT_ENABLED}
-          />
-          <PricingCard
-            name={PLANS.annual.name}
-            price={`$${PLANS.annual.price}`}
-            period="/ year"
-            features={PLANS.annual.features}
-            cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
-            ctaHref="/auth/login?plan=annual"
-            highlight={false}
-            badge="Save 27%"
-            disabled={!CHECKOUT_ENABLED}
-          />
+          {/* Pricing cards — sized to fit three across in this narrower main
+              column (next to the sticky news feed) instead of the full page
+              width, per Dwight's request to keep them directly under the
+              what-is/what-is-not panel. */}
+          <div id="pricing-cards" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <PricingCard
+              name={PLANS.free.name}
+              price="$0"
+              period="forever"
+              features={PLANS.free.features}
+              cta="Get started free"
+              ctaHref="/auth/login"
+              highlight={false}
+            />
+            <PricingCard
+              name={PLANS.monthly.name}
+              price={`$${PLANS.monthly.price}`}
+              period="/ month"
+              features={PLANS.monthly.features}
+              cta={CHECKOUT_ENABLED ? 'Start Pro Monthly' : 'Coming soon'}
+              ctaHref="/auth/login?plan=monthly"
+              highlight
+              disabled={!CHECKOUT_ENABLED}
+            />
+            <PricingCard
+              name={PLANS.annual.name}
+              price={`$${PLANS.annual.price}`}
+              period="/ year"
+              features={PLANS.annual.features}
+              cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
+              ctaHref="/auth/login?plan=annual"
+              highlight={false}
+              badge="Save 27%"
+              disabled={!CHECKOUT_ENABLED}
+            />
+          </div>
         </div>
       </div>
 
@@ -172,32 +167,32 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
       background: '#fff',
       border: `1px solid ${highlight ? 'var(--accent)' : 'var(--border)'}`,
       borderRadius: 6,
-      padding: '32px 28px',
-      width: 300,
+      padding: '22px 18px',
+      width: 216,
       position: 'relative',
       boxShadow: highlight ? '0 8px 28px rgba(255,106,0,.12)' : 'none',
     }}>
       {badge && (
         <span style={{
-          position: 'absolute', top: -13, right: 18,
+          position: 'absolute', top: -11, right: 12,
           background: 'var(--yellow)', color: '#fff',
-          borderRadius: 3, padding: '3px 12px', fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+          borderRadius: 3, padding: '2px 9px', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.02em',
         }}>{badge}</span>
       )}
       {highlight && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: '1px', marginBottom: 8, textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: '1px', marginBottom: 6, textTransform: 'uppercase' }}>
           Most Popular
         </div>
       )}
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{name}</h2>
-      <div style={{ fontSize: 38, fontWeight: 800, marginBottom: 4, letterSpacing: '-1px' }}>
+      <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{name}</h2>
+      <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-1px' }}>
         {price}
-        <span style={{ fontSize: 15, color: 'var(--muted)', fontWeight: 400, letterSpacing: 0 }}> {period}</span>
+        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, letterSpacing: 0 }}> {period}</span>
       </div>
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '22px 0' }} />
-      <ul style={{ listStyle: 'none', marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '14px 0' }} />
+      <ul style={{ listStyle: 'none', marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {features.map(f => (
-          <li key={f} style={{ fontSize: 14, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <li key={f} style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
             <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
             {f}
           </li>
@@ -207,13 +202,13 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
         <button
           disabled
           className="btn-outline"
-          style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600, opacity: 0.5, cursor: 'not-allowed' }}
+          style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, opacity: 0.5, cursor: 'not-allowed' }}
         >{cta}</button>
       ) : (
         <Link href={ctaHref}>
           <button
             className={highlight ? 'btn-primary' : 'btn-outline'}
-            style={{ width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600 }}
+            style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600 }}
           >{cta}</button>
         </Link>
       )}
