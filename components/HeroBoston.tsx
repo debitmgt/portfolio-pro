@@ -89,7 +89,7 @@ export default function HeroBoston() {
           </a>
         </div>
 
-        {/* Headline + description + primary CTAs */}
+        {/* Headline + description + primary CTA */}
         <div style={{ maxWidth: 520 }}>
           <h1
             style={{
@@ -109,22 +109,11 @@ export default function HeroBoston() {
               fontSize: 16.5,
               lineHeight: 1.6,
               color: 'rgba(255,255,255,0.86)',
-              marginBottom: 14,
-              textShadow: '0 1px 3px rgba(0,0,0,0.35)',
-            }}
-          >
-            Ownfolio delivers real-time fundamentals, valuation, and portfolio analytics for buy-and-hold investors &mdash; impersonal, rules-based data on the companies you already own, with no trade signals and no personalized advice.
-          </p>
-          <p
-            style={{
-              fontSize: 15,
-              lineHeight: 1.6,
-              color: 'rgba(255,255,255,0.78)',
               marginBottom: 26,
               textShadow: '0 1px 3px rgba(0,0,0,0.35)',
             }}
           >
-            Ownfolio is a portfolio-tracking product for self-directed, buy-and-hold investors. Users enter their own holdings and get pricing, gain/loss, public fundamentals, public news, and a monthly ranking newsletter &mdash; now three tiers (large-cap, mid-cap, small-cap) plus an optional editorial spotlight and a public archive.
+            Ownfolio is a portfolio-tracking product for self-directed, buy-and-hold investors. Enter your own holdings and get real-time pricing, gain/loss, public fundamentals, public news, and a monthly ranking newsletter &mdash; now three tiers (large-cap, mid-cap, small-cap) plus an optional editorial spotlight and public archive. It&rsquo;s impersonal, rules-based data on the companies you already own, with no trade signals and no personalized advice.
           </p>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <a href="/auth/login">
@@ -140,21 +129,6 @@ export default function HeroBoston() {
                 }}
               >
                 Get started free
-              </button>
-            </a>
-            <a href="#pricing-cards">
-              <button
-                style={{
-                  background: 'transparent',
-                  color: '#ffffff',
-                  padding: '13px 24px',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  border: '1px solid rgba(255,255,255,0.5)',
-                  borderRadius: 4,
-                }}
-              >
-                See pricing
               </button>
             </a>
           </div>
@@ -184,18 +158,18 @@ export default function HeroBoston() {
             <HeroPlanPill
               label={PLANS.monthly.name}
               sub={`$${PLANS.monthly.price}/mo`}
-              href={CHECKOUT_ENABLED ? '/auth/login?plan=monthly' : '#pricing-cards'}
+              href={CHECKOUT_ENABLED ? '/auth/login?plan=monthly' : '#page-two'}
               highlight
             />
             <HeroPlanPill
               label={PLANS.annual.name}
               sub={`$${PLANS.annual.price}/yr`}
-              href={CHECKOUT_ENABLED ? '/auth/login?plan=annual' : '#pricing-cards'}
+              href={CHECKOUT_ENABLED ? '/auth/login?plan=annual' : '#page-two'}
               badge="Save 27%"
             />
           </div>
           <a
-            href="#pricing-cards"
+            href="#page-two"
             style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}
           >
             See full plan details ↓

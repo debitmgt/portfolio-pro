@@ -15,7 +15,12 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
       background: 'var(--bg)',
     }}>
       <HeroBoston />
-      <MarketTicker />
+      {/* Anchor for the hero's pricing-bar links — they should hand off to
+          the top of page two (the ticker), not jump past it into the pricing
+          card grid further down. */}
+      <div id="page-two" style={{ width: '100%' }}>
+        <MarketTicker />
+      </div>
 
       {/* Two-column layout: news feed occupies the left third on wide screens
           (sticky, so it stays in view and keeps drawing the eye as an
