@@ -25,10 +25,12 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
       {/* Two-column layout: news feed occupies the left third on wide screens
           (sticky, so it stays in view and keeps drawing the eye as an
           anonymous visitor scrolls) and stacks above the main content on
-          narrow screens via flex-wrap. */}
+          narrow screens via flex-wrap. Centered vertically against the news
+          feed's height, since the main column is short now that pricing
+          cards and the footer moved to their own full-width rows. */}
       <div style={{
         width: '100%', maxWidth: 1240, margin: '0 auto', padding: '48px 24px',
-        display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'flex-start', flex: 1,
+        display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'center', flex: 1,
       }}>
         <div style={{ flex: '1 1 320px', minWidth: 280 }}>
           <div style={{ position: 'sticky', top: 24 }}>
