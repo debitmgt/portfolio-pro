@@ -150,7 +150,7 @@ function baseLayout(opts: {
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:560px;background:#14161c;border:1px solid #2a2d36;border-radius:8px;overflow:hidden;">
         <tr><td style="padding:24px 24px 8px 24px;">
-          <div style="font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f9c;font-weight:600;">Ownfolio</div>
+          <div style="font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f9c;font-weight:600;">Ownfolio LLC</div>
           <h1 style="margin:8px 0 4px 0;color:#f2f3f5;font-size:20px;">${title}</h1>
           <p style="margin:0 0 4px 0;color:#b6bac4;font-size:13px;line-height:1.6;">${intro}</p>
         </td></tr>
@@ -211,7 +211,7 @@ export function renderMultiTierTop25Email(opts: {
   const html = baseLayout({
     preheader: `This month's Top 25 by trailing 1-year return — large, mid, and small cap`,
     title: `Top 25 — ${monthTitle}`,
-    intro: `The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio's tracked universe. Same lists, same methodology, for every free subscriber.`,
+    intro: `The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio LLC's tracked universe. Same lists, same methodology, for every free subscriber.`,
     editorial,
     sections,
     extraSectionsHtml,
@@ -219,7 +219,7 @@ export function renderMultiTierTop25Email(opts: {
     unsubscribeUrl: `${APP_URL}/api/newsletter/unsubscribe?token=${unsubscribeToken}`,
   })
 
-  return { subject: `Ownfolio Top 25 — ${monthTitle}`, html }
+  return { subject: `Ownfolio LLC Top 25 — ${monthTitle}`, html }
 }
 
 // Double opt-in confirmation email — sent immediately on signup, before any
@@ -232,10 +232,10 @@ export function renderConfirmSubscriptionEmail(opts: { confirmToken: string }): 
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:480px;background:#14161c;border:1px solid #2a2d36;border-radius:8px;">
         <tr><td style="padding:24px;">
-          <div style="font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f9c;font-weight:600;">Ownfolio</div>
+          <div style="font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f9c;font-weight:600;">Ownfolio LLC</div>
           <h1 style="margin:8px 0 12px 0;color:#f2f3f5;font-size:18px;">Confirm your subscription</h1>
           <p style="margin:0 0 20px 0;color:#b6bac4;font-size:13px;line-height:1.6;">
-            Click below to confirm you'd like the monthly Ownfolio Top 25 — three ranked lists (large, mid, and small cap) of the 25 highest trailing 1-year returns from our tracked universe, plus a combined Top 50 recency-weighted list, sent once a month. Informational only, not financial advice.
+            Click below to confirm you'd like the monthly Ownfolio LLC Top 25 — three ranked lists (large, mid, and small cap) of the 25 highest trailing 1-year returns from our tracked universe, plus a combined Top 50 recency-weighted list, sent once a month. Informational only, not financial advice.
           </p>
           <a href="${confirmUrl}" style="display:inline-block;background:#ff6a00;color:#14161c;font-weight:700;font-size:13px;padding:10px 18px;border-radius:6px;text-decoration:none;">Confirm subscription</a>
           <p style="margin:20px 0 0 0;color:#6b6f7a;font-size:11px;line-height:1.6;">
@@ -246,7 +246,7 @@ export function renderConfirmSubscriptionEmail(opts: { confirmToken: string }): 
     </td></tr>
   </table>
 </body></html>`
-  return { subject: 'Confirm your Ownfolio Top 25 subscription', html }
+  return { subject: 'Confirm your Ownfolio LLC Top 25 subscription', html }
 }
 
 // ─── Pro: watchlist digest, grouped by the same three tiers ──────────────────
@@ -293,7 +293,7 @@ export function renderWatchlistDigestEmail(opts: {
   const html = baseLayout({
     preheader: `Your watchlist's trailing 1-year performance this month`,
     title: `Your Watchlist — ${monthTitle}`,
-    intro: `How the symbols on your watchlist ranked this month, out of Ownfolio's full tracked universe, grouped by cap tier. Same ranking data and methodology as the public Top 25 — just filtered to the tickers you chose to follow.`,
+    intro: `How the symbols on your watchlist ranked this month, out of Ownfolio LLC's full tracked universe, grouped by cap tier. Same ranking data and methodology as the public Top 25 — just filtered to the tickers you chose to follow.`,
     editorial,
     sections: sections.length ? sections : [{ title: 'Your Watchlist', rows: [] }],
     extraSectionsHtml,

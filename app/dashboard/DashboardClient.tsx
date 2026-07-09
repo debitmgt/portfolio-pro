@@ -181,11 +181,11 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 13,
           }}>O</span>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio</span>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
           {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>↻</span>}
           <Link
             href="/disclaimer"
-            title="Ownfolio provides data and analytics, not personalized investment advice — see full disclaimer"
+            title="Ownfolio LLC provides data and analytics, not personalized investment advice — see full disclaimer"
             style={{
               fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
               color: 'var(--muted)', background: 'var(--surface-2)', border: '1px solid var(--border)',

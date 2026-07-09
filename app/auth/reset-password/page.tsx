@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 14,
           }}>O</span>
-          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
         </div>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--muted)' }}>Set a new password</h2>
       </div>

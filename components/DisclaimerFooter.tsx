@@ -15,7 +15,7 @@ export default function DisclaimerFooter({ dense = false }: { dense?: boolean })
       background: dense ? 'var(--surface)' : 'transparent',
       flexShrink: 0,
     }}>
-      For informational and educational purposes only — not financial advice. Ownfolio is not a
+      For informational and educational purposes only — not financial advice. Ownfolio LLC is not a
       registered investment adviser and is not responsible for any losses resulting from use of this
       site. <Link href="/disclaimer" className="link" style={{ fontSize: 11.5 }}>Full disclaimer</Link>
     </div>

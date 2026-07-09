@@ -1,4 +1,4 @@
-# Ownfolio
+# Ownfolio LLC
 
 Real-time data and analytics for long-term, buy-and-hold investors, with Stripe billing.
 

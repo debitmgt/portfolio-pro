@@ -1,6 +1,6 @@
 import { NewsletterStatusPage } from '@/components/NewsletterStatusPage'
 
-export const metadata = { title: 'Unsubscribe link invalid — Ownfolio' }
+export const metadata = { title: 'Unsubscribe link invalid — Ownfolio LLC' }
 
 export default function UnsubscribeErrorPage() {
   return (

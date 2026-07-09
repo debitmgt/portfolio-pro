@@ -87,7 +87,7 @@ function ConfirmForm() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 14,
           }}>O</span>
-          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
         </div>
         <h2 style={{ marginBottom: 12, fontSize: 20 }}>Confirm password reset</h2>
         <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>

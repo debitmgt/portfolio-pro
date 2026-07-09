@@ -65,7 +65,7 @@ function LoginForm() {
   async function handleSubmit() {
     setError('')
     if (mode === 'signup' && !acknowledged) {
-      setError('Please confirm you understand Ownfolio is data and analytics, not personalized advice, before creating an account.')
+      setError('Please confirm you understand Ownfolio LLC is data and analytics, not personalized advice, before creating an account.')
       return
     }
     if (TURNSTILE_SITE_KEY && !captchaToken) {
@@ -140,7 +140,7 @@ function LoginForm() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 14,
           }}>O</span>
-          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
         </div>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--muted)' }}>
           {mode === 'login' ? 'Sign in to your account' : 'Create your account'}
@@ -187,7 +187,7 @@ function LoginForm() {
             style={{ marginTop: 2, flexShrink: 0 }}
           />
           <span>
-            I understand Ownfolio provides data and analytics for self-directed, long-term investors —
+            I understand Ownfolio LLC provides data and analytics for self-directed, long-term investors —
             not personalized investment advice. See the{' '}
             <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="link" style={{ fontSize: 12.5 }}>
               full disclaimer

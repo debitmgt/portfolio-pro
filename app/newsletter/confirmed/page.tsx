@@ -1,13 +1,13 @@
 import { NewsletterStatusPage } from '@/components/NewsletterStatusPage'
 
-export const metadata = { title: 'Subscribed — Ownfolio' }
+export const metadata = { title: 'Subscribed — Ownfolio LLC' }
 
 export default function ConfirmedPage() {
   return (
     <NewsletterStatusPage
       eyebrow="Newsletter"
       title="You're subscribed"
-      body="You'll get the Ownfolio Top 25 once a month — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap, plus a combined Top 50 recency-weighted list, all from our tracked universe, same lists for every subscriber. You can unsubscribe anytime from the link in any email."
+      body="You'll get the Ownfolio LLC Top 25 once a month — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap, plus a combined Top 50 recency-weighted list, all from our tracked universe, same lists for every subscriber. You can unsubscribe anytime from the link in any email."
       extraLink={{ href: '/newsletter/archive', label: 'Browse past issues →' }}
     />
   )

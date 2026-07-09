@@ -3,14 +3,14 @@ import Link from 'next/link'
 import { DISCLAIMER_FULL } from '@/lib/disclaimer'
 
 export const metadata = {
-  title: 'Disclaimer — Ownfolio',
+  title: 'Disclaimer — Ownfolio LLC',
 }
 
 export default function DisclaimerPage() {
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg)', padding: '48px 24px' }}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <Link href="/pricing" className="link" style={{ fontSize: 13 }}>← Back to Ownfolio</Link>
+        <Link href="/pricing" className="link" style={{ fontSize: 13 }}>← Back to Ownfolio LLC</Link>
 
         <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', margin: '20px 0 6px' }}>
           Disclaimer
@@ -29,7 +29,7 @@ export default function DisclaimerPage() {
         </div>
 
         <p style={{ fontSize: 12, color: 'var(--muted-2)', marginTop: 20 }}>
-          Questions about this disclaimer or how Ownfolio works? Contact us before relying on any
+          Questions about this disclaimer or how Ownfolio LLC works? Contact us before relying on any
           data from the site for a real investment decision.
         </p>
       </div>

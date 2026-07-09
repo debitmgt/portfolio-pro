@@ -52,7 +52,7 @@ export default function NewsletterIssueView({
         Top 25 — {periodTitle(periodLabel)}
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 28 }}>
-        The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio's tracked universe. Same lists every subscriber received.
+        The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio LLC's tracked universe. Same lists every subscriber received.
       </p>
 
       {editorial && (

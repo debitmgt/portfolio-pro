@@ -52,7 +52,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
           }}>
             <div style={{ flex: '1 1 300px', minWidth: 260 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
-                What Ownfolio is
+                What Ownfolio LLC is
               </div>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
@@ -69,7 +69,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
             </div>
             <div style={{ flex: '1 1 300px', minWidth: 260 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
-                What Ownfolio is not
+                What Ownfolio LLC is not
               </div>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[

@@ -17,7 +17,7 @@ export function NewsletterStatusPage({ eyebrow, title, body, extraLink }: {
             <Link href={extraLink.href} className="link" style={{ fontSize: 13 }}>{extraLink.label}</Link>
           </p>
         )}
-        <Link href="/" className="link" style={{ fontSize: 13 }}>← Back to Ownfolio</Link>
+        <Link href="/" className="link" style={{ fontSize: 13 }}>← Back to Ownfolio LLC</Link>
       </div>
     </main>
   )

@@ -58,7 +58,7 @@ export default async function NewsletterArchivePage() {
         </div>
 
         <p style={{ marginTop: 40, fontSize: 13 }}>
-          <Link href="/pricing" style={{ color: 'var(--accent)', fontWeight: 600 }}>← Back to Ownfolio</Link>
+          <Link href="/pricing" style={{ color: 'var(--accent)', fontWeight: 600 }}>← Back to Ownfolio LLC</Link>
         </p>
       </div>
     </main>
