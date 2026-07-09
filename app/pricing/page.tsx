@@ -90,39 +90,46 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
               </ul>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div id="pricing-cards" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
-            <PricingCard
-              name={PLANS.free.name}
-              price="$0"
-              period="forever"
-              features={PLANS.free.features}
-              cta="Get started free"
-              ctaHref="/auth/login"
-              highlight={false}
-            />
-            <PricingCard
-              name={PLANS.monthly.name}
-              price={`$${PLANS.monthly.price}`}
-              period="/ month"
-              features={PLANS.monthly.features}
-              cta={CHECKOUT_ENABLED ? 'Start Pro Monthly' : 'Coming soon'}
-              ctaHref="/auth/login?plan=monthly"
-              highlight
-              disabled={!CHECKOUT_ENABLED}
-            />
-            <PricingCard
-              name={PLANS.annual.name}
-              price={`$${PLANS.annual.price}`}
-              period="/ year"
-              features={PLANS.annual.features}
-              cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
-              ctaHref="/auth/login?plan=annual"
-              highlight={false}
-              badge="Save 27%"
-              disabled={!CHECKOUT_ENABLED}
-            />
-          </div>
+      {/* Full-width pricing row — pulled out of the two-column layout above
+          so it isn't squeezed by the sticky news-feed sidebar. Three 300px
+          cards + gaps need ~950px; the main column there only had ~770px,
+          so the third card wrapped to its own row. Full page width (1152px
+          inside the 1240px max, minus padding) fits all three side by side. */}
+      <div style={{ width: '100%', maxWidth: 1240, margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'center' }}>
+        <div id="pricing-cards" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000 }}>
+          <PricingCard
+            name={PLANS.free.name}
+            price="$0"
+            period="forever"
+            features={PLANS.free.features}
+            cta="Get started free"
+            ctaHref="/auth/login"
+            highlight={false}
+          />
+          <PricingCard
+            name={PLANS.monthly.name}
+            price={`$${PLANS.monthly.price}`}
+            period="/ month"
+            features={PLANS.monthly.features}
+            cta={CHECKOUT_ENABLED ? 'Start Pro Monthly' : 'Coming soon'}
+            ctaHref="/auth/login?plan=monthly"
+            highlight
+            disabled={!CHECKOUT_ENABLED}
+          />
+          <PricingCard
+            name={PLANS.annual.name}
+            price={`$${PLANS.annual.price}`}
+            period="/ year"
+            features={PLANS.annual.features}
+            cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
+            ctaHref="/auth/login?plan=annual"
+            highlight={false}
+            badge="Save 27%"
+            disabled={!CHECKOUT_ENABLED}
+          />
         </div>
       </div>
 
