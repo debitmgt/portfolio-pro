@@ -1,9 +1,9 @@
 // app/disclaimer/page.tsx
 import Link from 'next/link'
-import { DISCLAIMER_FULL } from '@/lib/disclaimer'
+import { DISCLAIMER_FULL, TERMS_OF_USE } from '@/lib/disclaimer'
 
 export const metadata = {
-  title: 'Disclaimer — Ownfolio LLC',
+  title: 'Disclaimer & Terms of Use — Ownfolio LLC',
 }
 
 export default function DisclaimerPage() {
@@ -28,9 +28,31 @@ export default function DisclaimerPage() {
           ))}
         </div>
 
+        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', margin: '44px 0 20px' }}>
+          Terms of Use
+        </h1>
+
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 6, padding: '28px 28px', display: 'flex', flexDirection: 'column', gap: 24,
+        }}>
+          {TERMS_OF_USE.map((section, i) => (
+            <div key={i}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>
+                {section.heading}
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {section.paragraphs.map((p, j) => (
+                  <p key={j} style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7 }}>{p}</p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
         <p style={{ fontSize: 12, color: 'var(--muted-2)', marginTop: 20 }}>
-          Questions about this disclaimer or how Ownfolio LLC works? Contact us before relying on any
-          data from the site for a real investment decision.
+          Questions about this disclaimer, the Terms of Use, or how Ownfolio LLC works? Contact us
+          before relying on any data from the site for a real investment decision.
         </p>
       </div>
     </main>

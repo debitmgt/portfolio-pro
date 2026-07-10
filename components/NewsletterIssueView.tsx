@@ -138,6 +138,15 @@ export default function NewsletterIssueView({
       <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6 }}>
         Ranked by trailing 1-year price return, computed identically for every tracked symbol from public market data. Cap tier (large/mid/small) is classified from live market capitalization at scoring time. The Top 50 combined list (if shown) uses a separate, recency-weighted blend of trailing returns. Both are historical performance only — not tailored to any individual and not a signal to act now. Not financial advice.
       </p>
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6, fontWeight: 700, marginBottom: 4 }}>
+          Disclosure
+        </p>
+        <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+          This newsletter is a general, impersonal publication based solely on historical market data. It is not tailored to your objectives, financial situation, or portfolio, and does not provide investment advice, legal advice, tax advice, or a recommendation to buy, sell, or hold any security. Ownfolio LLC does not act as an investment adviser or broker and does not evaluate the suitability of any security or strategy for any person. Past performance is not indicative of future results; investing involves risk, including possible loss of principal.
+        </p>
+      </div>
     </div>
   )
 }

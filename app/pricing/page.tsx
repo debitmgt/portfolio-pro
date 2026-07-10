@@ -40,6 +40,24 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
           flex: '2 1 480px', minWidth: 320,
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
+          {/* Business summary — attorney-mandated copy (Keidi Carrington, Esq.,
+              2026-07-09, item 4), placed in the white section before any
+              pricing information. Do not paraphrase. */}
+          <div style={{ maxWidth: 640, marginBottom: 44, textAlign: 'left' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.3px', marginBottom: 12, color: 'var(--text)' }}>
+              Ownfolio: Impersonal portfolio tracking for long-term investors
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+              Ownfolio (signalfolio.net / ownfolio.net) lets self-directed, buy-and-hold investors track their portfolios with clear, rules-based data. You enter your own holdings and see pricing, gain/loss, public fundamentals, and public news presented in a standardized, historical format.
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+              Each month, subscribers receive a general-circulation ranking newsletter featuring three cap tiers (large, mid, and small), plus an optional editorial spotlight and a public archive of past issues. The same methodology applies to every listed security and every subscriber — the content is impersonal and not tailored to any individual.
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7 }}>
+              Ownfolio does not execute trades, hold customer funds or securities, accept discretionary authority, or provide personalized investment advice. The product is a business and financial publication for informational and educational purposes only, intended for investors who make their own decisions.
+            </p>
+          </div>
+
           {searchParams?.paused === '1' && (
             <div style={{
               maxWidth: 480, marginBottom: 28, padding: '12px 18px', borderRadius: 6,

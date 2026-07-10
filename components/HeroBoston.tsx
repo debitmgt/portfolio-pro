@@ -1,11 +1,18 @@
 // components/HeroBoston.tsx
 // Full-viewport landing hero. Dark Boston-harbor skyline wallpaper (Zakim
 // Bridge silhouette) extends the full first screen — this *is* the landing
-// page. A left-to-right scrim keeps the headline column readable, plus a
+// page. A left-to-right scrim keeps the center column readable, plus a
 // bottom scrim so the overlaid pricing bar stays legible regardless of how
 // the skyline art shifts. The pricing bar sits pinned to the bottom edge of
 // the wallpaper as the hand-off into page two (ticker, market news, plan
 // detail) below.
+//
+// Layout per attorney letter (Keidi Carrington, Esq., 2026-07-09, item 4):
+// the business name "Ownfolio.net" runs large type in the middle of the
+// black banner, with the tagline "Take Charge of Your Investments" in
+// smaller type directly under it. The business-summary paragraph that used
+// to live here moved to the white section of the pricing page, before any
+// pricing information (also per that letter).
 import { PLANS, CHECKOUT_ENABLED } from '@/lib/stripe'
 
 export default function HeroBoston() {
@@ -57,21 +64,11 @@ export default function HeroBoston() {
           justifyContent: 'space-between',
         }}
       >
-        {/* Wordmark + sign in — top bar. Sign in was previously buried as a
-            small text link far down the pricing page and users couldn't find
-            it; it now sits up front, high-contrast, on every visit. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span
-            style={{
-              fontSize: 'clamp(22px, 3vw, 28px)',
-              fontWeight: 800,
-              letterSpacing: '-0.5px',
-              color: '#ffffff',
-              textShadow: '0 1px 4px rgba(0,0,0,0.4)',
-            }}
-          >
-            Ownfolio<span style={{ color: 'var(--accent)' }}>.net</span>
-          </span>
+        {/* Sign in — top bar. Previously buried as a small text link far down
+            the pricing page and users couldn't find it; it now sits up
+            front, high-contrast, on every visit. Wordmark moved out of this
+            bar and into the centered block below, per the attorney letter. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
           <a href="/auth/login">
             <button
               style={{
@@ -89,33 +86,35 @@ export default function HeroBoston() {
           </a>
         </div>
 
-        {/* Headline + description + primary CTA */}
-        <div style={{ maxWidth: 520 }}>
+        {/* Business name (large, centered) + tagline (smaller, directly
+            under) + primary CTA. */}
+        <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
           <h1
             style={{
-              fontSize: 'clamp(30px, 4.5vw, 44px)',
+              fontSize: 'clamp(44px, 9vw, 88px)',
               fontWeight: 800,
-              letterSpacing: '-1px',
-              lineHeight: 1.12,
+              letterSpacing: '-1.5px',
+              lineHeight: 1.05,
               color: '#ffffff',
-              marginBottom: 16,
-              textShadow: '0 1px 4px rgba(0,0,0,0.35)',
+              marginBottom: 14,
+              textShadow: '0 1px 6px rgba(0,0,0,0.4)',
             }}
           >
-            Take charge of your investments
+            Ownfolio<span style={{ color: 'var(--accent)' }}>.net</span>
           </h1>
           <p
             style={{
-              fontSize: 16.5,
-              lineHeight: 1.6,
-              color: 'rgba(255,255,255,0.86)',
-              marginBottom: 26,
+              fontSize: 'clamp(16px, 2.2vw, 22px)',
+              fontWeight: 600,
+              letterSpacing: '-0.2px',
+              color: 'rgba(255,255,255,0.9)',
+              marginBottom: 28,
               textShadow: '0 1px 3px rgba(0,0,0,0.35)',
             }}
           >
-            Ownfolio is a portfolio-tracking product for self-directed, buy-and-hold investors. Enter your own holdings and get real-time pricing, gain/loss, public fundamentals, public news, and a monthly ranking newsletter &mdash; now three tiers (large-cap, mid-cap, small-cap) plus an optional editorial spotlight and public archive. It&rsquo;s impersonal, rules-based data on the companies you already own, with no trade signals and no personalized advice.
+            Take Charge of Your Investments
           </p>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
             <a href="/auth/login">
               <button
                 style={{

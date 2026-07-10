@@ -158,8 +158,11 @@ function baseLayout(opts: {
         ${sectionsHtml}
         <tr><td style="padding:20px 24px 24px 24px;">
           <p style="margin:0;color:#6b6f7a;font-size:11px;line-height:1.6;">${methodologyNote}</p>
-          <p style="margin:12px 0 0 0;color:#6b6f7a;font-size:11px;line-height:1.6;">
-            This is a description of past performance, not a recommendation to buy, sell, or hold any security. Not financial advice.
+          <p style="margin:16px 0 0 0;color:#6b6f7a;font-size:11px;line-height:1.6;">
+            <strong style="color:#8a8f9c;">Disclosure</strong><br/>
+            This newsletter is a general, impersonal publication based solely on historical market data. It is not tailored to your objectives, financial situation, or portfolio, and does not provide investment advice, legal advice, tax advice, or a recommendation to buy, sell, or hold any security. Ownfolio LLC does not act as an investment adviser or broker and does not evaluate the suitability of any security or strategy for any person. Past performance is not indicative of future results; investing involves risk, including possible loss of principal.
+          </p>
+          <p style="margin:10px 0 0 0;color:#6b6f7a;font-size:11px;line-height:1.6;">
             <a href="${APP_URL}/disclaimer" style="color:#8a8f9c;">Full disclaimer</a>.
           </p>
         </td></tr>
