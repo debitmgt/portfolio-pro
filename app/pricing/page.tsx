@@ -47,13 +47,13 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
             <h2 style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.3px', marginBottom: 12, color: 'var(--text)' }}>
               Ownfolio: Impersonal portfolio tracking for long-term investors
             </h2>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
               Ownfolio (ownfolio.net) lets self-directed, buy-and-hold investors track their portfolios with clear, rules-based data. You enter your own holdings and see pricing, gain/loss, public fundamentals, and public news presented in a standardized, historical format.
             </p>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
               Each month, subscribers receive a general-circulation ranking newsletter featuring three cap tiers (large, mid, and small), plus an optional editorial spotlight and a public archive of past issues. The same methodology applies to every listed security and every subscriber — the content is impersonal and not tailored to any individual.
             </p>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7 }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7 }}>
               Ownfolio does not execute trades, hold customer funds or securities, accept discretionary authority, or provide personalized investment advice. The product is a business and financial publication for informational and educational purposes only, intended for investors who make their own decisions.
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
                   'A way to see fundamentals, valuation, and portfolio composition clearly, without noise.',
                   'Transparent about method — every number traces to a disclosed, checkable rule.',
                 ].map(item => (
-                  <li key={item} style={{ fontSize: 13.5, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                  <li key={item} style={{ fontSize: 13.5, color: 'var(--text)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
                     <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
                     {item}
                   </li>
@@ -100,7 +100,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
                   'Not a trade-timing or trading-signal service.',
                   'Not built around exit timing, position sizing formulas, or short-term ranking.',
                 ].map(item => (
-                  <li key={item} style={{ fontSize: 13.5, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                  <li key={item} style={{ fontSize: 13.5, color: 'var(--text)', display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
                     <span style={{ color: 'var(--red)', marginTop: 1, flexShrink: 0 }}>✕</span>
                     {item}
                   </li>
@@ -205,12 +205,12 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
       <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{name}</h2>
       <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-1px' }}>
         {price}
-        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, letterSpacing: 0 }}> {period}</span>
+        <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 400, letterSpacing: 0 }}> {period}</span>
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '14px 0' }} />
       <ul style={{ listStyle: 'none', marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {features.map(f => (
-          <li key={f} style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <li key={f} style={{ fontSize: 12, color: 'var(--text)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
             <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
             {f}
           </li>
