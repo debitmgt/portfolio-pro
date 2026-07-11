@@ -796,7 +796,7 @@ function FundamentalsTab({ holdings }: { holdings: Holding[] }) {
   }, [holdings])
 
   return (
-    <ProTabShell title="Fundamentals" description="Key fundamental metrics for your holdings, plus four individual percentile scores computed the same way for every ticker on a daily schedule.">
+    <ProTabShell title="Fundamentals" description="Summary, Dividends, Growth, Valuation, Profitability, and Price Performance for each holding — as-reported figures from public data, plus four individual percentile scores computed the same way for every ticker on a daily schedule.">
       {holdings.length === 0 ? <EmptyState /> : (
         <div style={{ display: 'grid', gap: 12 }}>
           {holdings.map(h => (
@@ -820,12 +820,152 @@ interface Fundamentals {
   week52High: number | null
   week52Low: number | null
   beta: number | null
+  dividends: {
+    perShareAnnual: number | null
+    indicatedAnnual: number | null
+    yieldIndicatedAnnual: number | null
+    yieldTTM: number | null
+    payoutRatioTTM: number | null
+    growthRate5Y: number | null
+  }
+  growth: {
+    epsGrowthTTMYoy: number | null
+    epsGrowth3Y: number | null
+    epsGrowth5Y: number | null
+    revenueGrowthTTMYoy: number | null
+    revenueGrowth3Y: number | null
+    revenueGrowth5Y: number | null
+  }
+  valuation: {
+    peTTM: number | null
+    forwardPE: number | null
+    pegTTM: number | null
+    pbAnnual: number | null
+    psTTM: number | null
+    evEbitdaTTM: number | null
+  }
+  profitability: {
+    grossMarginTTM: number | null
+    grossMargin5Y: number | null
+    operatingMarginTTM: number | null
+    operatingMargin5Y: number | null
+    netProfitMarginTTM: number | null
+    netProfitMargin5Y: number | null
+    roeTTM: number | null
+    roe5Y: number | null
+    roaTTM: number | null
+    roa5Y: number | null
+    roiTTM: number | null
+    roi5Y: number | null
+  }
+  pricePerformance: {
+    fiveDay: number | null
+    thirteenWeek: number | null
+    twentySixWeek: number | null
+    fiftyTwoWeek: number | null
+    yearToDate: number | null
+    monthToDate: number | null
+    week52HighDate: string | null
+    week52LowDate: string | null
+  }
+}
+
+const DETAIL_TABS = ['Summary', 'Dividends', 'Growth', 'Valuation', 'Profitability', 'Price Performance'] as const
+type DetailTab = typeof DETAIL_TABS[number]
+
+function fmtPct(v: number | null): string {
+  if (v == null) return '—'
+  const sign = v >= 0 ? '+' : ''
+  return `${sign}${v.toFixed(2)}%`
+}
+
+function fmtNum(v: number | null, suffix = ''): string {
+  return v != null ? `${v.toFixed(2)}${suffix}` : '—'
+}
+
+function fmtDate(v: string | null): string {
+  if (!v) return '—'
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? v : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function fmtMarketCap(m: number | null) {
+  if (m == null) return '—'
+  if (m >= 1_000_000) return `$${(m / 1_000_000).toFixed(2)}T`
+  if (m >= 1_000) return `$${(m / 1_000).toFixed(2)}B`
+  return `$${m.toFixed(0)}M`
+}
+
+// Every category below is a flat list of published, as-reported figures —
+// no percentile ranking, letter grade, or color-coded verdict. That scoring
+// treatment stays confined to the existing "Percentile Scores" section
+// (computed identically for every ticker, shown separately) per the
+// publisher's-exclusion framing in Ownfolio_Publishers_Exclusion_Attorney_Memo.docx.
+function detailRows(data: Fundamentals, tab: DetailTab): [string, string][] {
+  switch (tab) {
+    case 'Summary':
+      return [
+        ['Market Cap', fmtMarketCap(data.marketCap)],
+        ['P/E Ratio (TTM)', fmtNum(data.peRatio)],
+        ['52W High', data.week52High != null ? `$${data.week52High.toFixed(2)}` : '—'],
+        ['52W Low', data.week52Low != null ? `$${data.week52Low.toFixed(2)}` : '—'],
+        ['Beta', fmtNum(data.beta)],
+      ]
+    case 'Dividends':
+      return [
+        ['Annual Dividend/Share', data.dividends.perShareAnnual != null ? `$${data.dividends.perShareAnnual.toFixed(2)}` : '—'],
+        ['Indicated Annual Div.', data.dividends.indicatedAnnual != null ? `$${data.dividends.indicatedAnnual.toFixed(2)}` : '—'],
+        ['Indicated Yield', fmtPct(data.dividends.yieldIndicatedAnnual)],
+        ['TTM Yield', fmtPct(data.dividends.yieldTTM)],
+        ['Payout Ratio (TTM)', fmtPct(data.dividends.payoutRatioTTM)],
+        ['5Y Div. Growth Rate', fmtPct(data.dividends.growthRate5Y)],
+      ]
+    case 'Growth':
+      return [
+        ['EPS Growth (TTM YoY)', fmtPct(data.growth.epsGrowthTTMYoy)],
+        ['EPS Growth (3Y)', fmtPct(data.growth.epsGrowth3Y)],
+        ['EPS Growth (5Y)', fmtPct(data.growth.epsGrowth5Y)],
+        ['Revenue Growth (TTM YoY)', fmtPct(data.growth.revenueGrowthTTMYoy)],
+        ['Revenue Growth (3Y)', fmtPct(data.growth.revenueGrowth3Y)],
+        ['Revenue Growth (5Y)', fmtPct(data.growth.revenueGrowth5Y)],
+      ]
+    case 'Valuation':
+      return [
+        ['P/E (TTM)', fmtNum(data.valuation.peTTM)],
+        ['Forward P/E', fmtNum(data.valuation.forwardPE)],
+        ['PEG (TTM)', fmtNum(data.valuation.pegTTM)],
+        ['P/B (Annual)', fmtNum(data.valuation.pbAnnual)],
+        ['P/S (TTM)', fmtNum(data.valuation.psTTM)],
+        ['EV/EBITDA (TTM)', fmtNum(data.valuation.evEbitdaTTM)],
+      ]
+    case 'Profitability':
+      return [
+        ['Gross Margin (TTM / 5Y)', `${fmtPct(data.profitability.grossMarginTTM)} / ${fmtPct(data.profitability.grossMargin5Y)}`],
+        ['Operating Margin (TTM / 5Y)', `${fmtPct(data.profitability.operatingMarginTTM)} / ${fmtPct(data.profitability.operatingMargin5Y)}`],
+        ['Net Margin (TTM / 5Y)', `${fmtPct(data.profitability.netProfitMarginTTM)} / ${fmtPct(data.profitability.netProfitMargin5Y)}`],
+        ['ROE (TTM / 5Y)', `${fmtPct(data.profitability.roeTTM)} / ${fmtPct(data.profitability.roe5Y)}`],
+        ['ROA (TTM / 5Y)', `${fmtPct(data.profitability.roaTTM)} / ${fmtPct(data.profitability.roa5Y)}`],
+        ['ROI (TTM / 5Y)', `${fmtPct(data.profitability.roiTTM)} / ${fmtPct(data.profitability.roi5Y)}`],
+      ]
+    case 'Price Performance':
+      return [
+        ['5 Day', fmtPct(data.pricePerformance.fiveDay)],
+        ['Month to Date', fmtPct(data.pricePerformance.monthToDate)],
+        ['13 Week', fmtPct(data.pricePerformance.thirteenWeek)],
+        ['26 Week', fmtPct(data.pricePerformance.twentySixWeek)],
+        ['52 Week', fmtPct(data.pricePerformance.fiftyTwoWeek)],
+        ['Year to Date', fmtPct(data.pricePerformance.yearToDate)],
+        ['52W High Date', fmtDate(data.pricePerformance.week52HighDate)],
+        ['52W Low Date', fmtDate(data.pricePerformance.week52LowDate)],
+      ]
+  }
 }
 
 function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string; metrics?: TickerMetrics; metricsLoading?: boolean }) {
   const [data, setData] = useState<Fundamentals | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [detailTab, setDetailTab] = useState<DetailTab>('Summary')
 
   useEffect(() => {
     let cancelled = false
@@ -842,20 +982,7 @@ function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string;
     return () => { cancelled = true }
   }, [symbol])
 
-  function fmtMarketCap(m: number | null) {
-    if (m == null) return '—'
-    if (m >= 1_000_000) return `$${(m / 1_000_000).toFixed(2)}T`
-    if (m >= 1_000) return `$${(m / 1_000).toFixed(2)}B`
-    return `$${m.toFixed(0)}M`
-  }
-
-  const rows = data ? [
-    ['Market Cap', fmtMarketCap(data.marketCap)],
-    ['P/E Ratio', data.peRatio != null ? data.peRatio.toFixed(2) : '—'],
-    ['52W High', data.week52High != null ? `$${data.week52High.toFixed(2)}` : '—'],
-    ['52W Low', data.week52Low != null ? `$${data.week52Low.toFixed(2)}` : '—'],
-    ['Beta', data.beta != null ? data.beta.toFixed(2) : '—'],
-  ] : []
+  const rows = data ? detailRows(data, detailTab) : []
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
@@ -868,14 +995,36 @@ function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string;
       ) : error ? (
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>Couldn't load fundamentals for {symbol}.</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-          {rows.map(([k, v]) => (
-            <div key={k}>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>{k}</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{v}</div>
-            </div>
-          ))}
-        </div>
+        <>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+            {DETAIL_TABS.map(t => (
+              <button
+                key={t}
+                onClick={() => setDetailTab(t)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: detailTab === t ? 'var(--accent)' : 'transparent',
+                  color: detailTab === t ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+            {rows.map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>{k}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>

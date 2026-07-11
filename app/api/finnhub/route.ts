@@ -42,6 +42,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'No data found for symbol' }, { status: 404 })
       }
 
+      // Everything below comes from the same /stock/metric?metric=all call
+      // already made above — no extra Finnhub requests. Grouped to mirror a
+      // Seeking-Alpha-style category layout (Summary / Dividends / Growth /
+      // Valuation / Profitability / Price Performance), but raw figures only
+      // — no letter grades, scores, or color-coded verdicts layered on top,
+      // consistent with the impersonal/no-advice framing used site-wide.
       return NextResponse.json({
         symbol,
         name: profile.name ?? null,
@@ -52,6 +58,55 @@ export async function GET(req: NextRequest) {
         week52Low: metric['52WeekLow'] ?? null,
         beta: metric.beta ?? null,
         logo: profile.logo ?? null,
+
+        dividends: {
+          perShareAnnual: metric.dividendPerShareAnnual ?? null,
+          indicatedAnnual: metric.dividendIndicatedAnnual ?? null,
+          yieldIndicatedAnnual: metric.dividendYieldIndicatedAnnual ?? null,
+          yieldTTM: metric.currentDividendYieldTTM ?? null,
+          payoutRatioTTM: metric.payoutRatioTTM ?? metric.payoutRatioAnnual ?? null,
+          growthRate5Y: metric.dividendGrowthRate5Y ?? null,
+        },
+        growth: {
+          epsGrowthTTMYoy: metric.epsGrowthTTMYoy ?? null,
+          epsGrowth3Y: metric.epsGrowth3Y ?? null,
+          epsGrowth5Y: metric.epsGrowth5Y ?? null,
+          revenueGrowthTTMYoy: metric.revenueGrowthTTMYoy ?? null,
+          revenueGrowth3Y: metric.revenueGrowth3Y ?? null,
+          revenueGrowth5Y: metric.revenueGrowth5Y ?? null,
+        },
+        valuation: {
+          peTTM: metric.peBasicExclExtraTTM ?? metric.peExclExtraTTM ?? null,
+          forwardPE: metric.forwardPE ?? null,
+          pegTTM: metric.pegTTM ?? null,
+          pbAnnual: metric.pbAnnual ?? null,
+          psTTM: metric.psTTM ?? null,
+          evEbitdaTTM: metric.evEbitdaTTM ?? null,
+        },
+        profitability: {
+          grossMarginTTM: metric.grossMarginTTM ?? null,
+          grossMargin5Y: metric.grossMargin5Y ?? null,
+          operatingMarginTTM: metric.operatingMarginTTM ?? null,
+          operatingMargin5Y: metric.operatingMargin5Y ?? null,
+          netProfitMarginTTM: metric.netProfitMarginTTM ?? null,
+          netProfitMargin5Y: metric.netProfitMargin5Y ?? null,
+          roeTTM: metric.roeTTM ?? null,
+          roe5Y: metric.roe5Y ?? null,
+          roaTTM: metric.roaTTM ?? null,
+          roa5Y: metric.roa5Y ?? null,
+          roiTTM: metric.roiTTM ?? null,
+          roi5Y: metric.roi5Y ?? null,
+        },
+        pricePerformance: {
+          fiveDay: metric['5DayPriceReturnDaily'] ?? null,
+          thirteenWeek: metric['13WeekPriceReturnDaily'] ?? null,
+          twentySixWeek: metric['26WeekPriceReturnDaily'] ?? null,
+          fiftyTwoWeek: metric['52WeekPriceReturnDaily'] ?? null,
+          yearToDate: metric.yearToDatePriceReturnDaily ?? null,
+          monthToDate: metric.monthToDatePriceReturnDaily ?? null,
+          week52HighDate: metric['52WeekHighDate'] ?? null,
+          week52LowDate: metric['52WeekLowDate'] ?? null,
+        },
       })
     } catch {
       return NextResponse.json({ error: 'Failed to fetch fundamentals' }, { status: 502 })
