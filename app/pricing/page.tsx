@@ -48,7 +48,7 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
               Ownfolio: Impersonal portfolio tracking for long-term investors
             </h2>
             <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
-              Ownfolio (signalfolio.net / ownfolio.net) lets self-directed, buy-and-hold investors track their portfolios with clear, rules-based data. You enter your own holdings and see pricing, gain/loss, public fundamentals, and public news presented in a standardized, historical format.
+              Ownfolio (ownfolio.net) lets self-directed, buy-and-hold investors track their portfolios with clear, rules-based data. You enter your own holdings and see pricing, gain/loss, public fundamentals, and public news presented in a standardized, historical format.
             </p>
             <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
               Each month, subscribers receive a general-circulation ranking newsletter featuring three cap tiers (large, mid, and small), plus an optional editorial spotlight and a public archive of past issues. The same methodology applies to every listed security and every subscriber — the content is impersonal and not tailored to any individual.
