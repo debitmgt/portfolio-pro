@@ -9,7 +9,7 @@ import DisclaimerFooter from '@/components/DisclaimerFooter'
 
 const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'News', 'My Returns', 'Position Status', 'Allocation View', 'Concentration', 'Charts', 'Fundamentals', 'Drawdown Alerts', 'Watchlist']
+const ALL_TABS = ['Tracker', 'Fundamentals', 'News', 'My Returns', 'Position Status', 'Allocation View', 'Concentration', 'Charts', 'Drawdown Alerts', 'Watchlist']
 
 interface Props {
   userId: string
@@ -680,7 +680,76 @@ function ConcentrationTab({ holdings, prices, totalValue }: { holdings: Holding[
       <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
         This is a description of your current holdings, not a recommendation for how to size any position.
       </p>
+
+      {holdings.length > 0 && <IndustryConcentration withWeight={withWeight} />}
     </ProTabShell>
+  )
+}
+
+// ─── Industry Concentration ───────────────────────────────────────────────────
+// Same per-holding weights as above, grouped by Finnhub's industry classification
+// (finnhubIndustry, from /stock/profile2 — free tier, already used in the
+// Fundamentals tab) instead of by symbol. Same "fact, not a formula" framing as
+// the rest of this tab — just a different grouping of the same numbers.
+function IndustryConcentration({ withWeight }: { withWeight: Array<{ symbol: string; weight: number }> }) {
+  const [industryMap, setIndustryMap] = useState<Record<string, string | null>>({})
+  const [loading, setLoading] = useState(true)
+  const symbolsKey = [...new Set(withWeight.map(h => h.symbol))].join(',')
+
+  useEffect(() => {
+    let cancelled = false
+    const symbols = symbolsKey ? symbolsKey.split(',') : []
+    if (!symbols.length) { setLoading(false); return }
+    setLoading(true)
+    Promise.all(
+      symbols.map(sym =>
+        fetch(`/api/finnhub?type=fundamentals&symbol=${encodeURIComponent(sym)}`)
+          .then(res => (res.ok ? res.json() : null))
+          .then((d: { industry: string | null } | null) => [sym, d?.industry ?? null] as [string, string | null])
+          .catch(() => [sym, null] as [string, string | null])
+      )
+    ).then(pairs => {
+      if (cancelled) return
+      const map: Record<string, string | null> = {}
+      for (const [sym, industry] of pairs) map[sym] = industry
+      setIndustryMap(map)
+    }).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [symbolsKey])
+
+  const grouped = (() => {
+    const totals: Record<string, number> = {}
+    for (const h of withWeight) {
+      const key = industryMap[h.symbol] ?? 'Unclassified'
+      totals[key] = (totals[key] ?? 0) + h.weight
+    }
+    return Object.entries(totals).sort((a, b) => b[1] - a[1])
+  })()
+
+  return (
+    <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>By Industry</h3>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+        The same holdings above, grouped by industry classification instead of by symbol — sourced from public company data, not a sector call of our own.
+      </p>
+      {loading && Object.keys(industryMap).length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {grouped.map(([industry, weight]) => (
+            <div key={industry}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{industry}</span>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{weight.toFixed(1)}%</span>
+              </div>
+              <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(weight, 100)}%`, height: '100%', background: 'var(--accent)', borderRadius: 4 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

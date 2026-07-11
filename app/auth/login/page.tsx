@@ -69,7 +69,7 @@ function LoginForm() {
       return
     }
     if (TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Please complete the verification check below.')
+      setError('Please complete the verification check above.')
       return
     }
     setLoading(true)
@@ -196,10 +196,6 @@ function LoginForm() {
         </label>
       )}
 
-      {TURNSTILE_SITE_KEY && (
-        <div ref={turnstileRef} style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }} />
-      )}
-
       {error && (
         <div style={{
           background: 'var(--red-tint)', border: '1px solid var(--red)',
@@ -207,6 +203,10 @@ function LoginForm() {
         }}>
           <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>
         </div>
+      )}
+
+      {TURNSTILE_SITE_KEY && (
+        <div ref={turnstileRef} style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }} />
       )}
 
       <button
