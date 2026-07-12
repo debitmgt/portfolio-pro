@@ -355,8 +355,8 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
       </div>
 
       {/* Holdings table */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflowX: 'auto', marginBottom: 20 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 640 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
               {['Symbol', 'Shares', 'Cost / Share', 'Current Price', 'Value', 'Gain / Loss', 'Trail Stop', ''].map(h => (
@@ -503,8 +503,8 @@ function MyReturnsTab({ holdings, prices }: { holdings: Holding[]; prices: Price
 
   return (
     <ProTabShell title="My Returns" description="Your own holdings sorted by return since your purchase price — a personal calculation, not a rating of the companies themselves.">
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 560 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
               {['#', 'Symbol', 'Current Price', 'Cost Basis', 'Your Return %', 'Market Value'].map(h => (
@@ -1316,8 +1316,8 @@ function StopLossTab({ holdings, prices }: { holdings: Holding[]; prices: PriceM
         </Callout>
       )}
 
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginTop: triggered.length ? 16 : 0 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflowX: 'auto', marginTop: triggered.length ? 16 : 0 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
               {['Symbol', 'Current Price', 'Trail %', 'Stop Price', 'Distance to Stop', 'Status'].map(h => (
