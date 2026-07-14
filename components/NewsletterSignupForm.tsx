@@ -46,9 +46,9 @@ export default function NewsletterSignupForm() {
 
   return (
     <div style={{ textAlign: 'center', maxWidth: 420 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Just want the free newsletter?</h3>
+      <h3 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.3px', marginBottom: 6 }}>Raw Performance Data. Zero Market Noise.</h3>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
-        The Ownfolio LLC Top 25 — the 25 highest trailing 1-year returns in each of large-cap, mid-cap, and small-cap, plus a combined Top 50 recency-weighted list, once a month. No account needed.
+        Get a free monthly list of the Top 25 best-performing stocks across Large-, Mid-, and Small-cap tiers, delivered straight to your inbox. No account needed.
       </p>
       <form onSubmit={submit} style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
         <input
@@ -65,11 +65,14 @@ export default function NewsletterSignupForm() {
           className="btn-outline"
           style={{ padding: '10px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: 'pointer' }}
         >
-          {status === 'loading' ? 'Signing up…' : 'Subscribe'}
+          {status === 'loading' ? 'Signing up…' : 'Get the Next Free Report'}
         </button>
       </form>
       {status === 'error' && <p style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{message}</p>}
-      <p style={{ marginTop: 12 }}>
+      <p style={{ marginTop: 10, fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+        No investment advice. No group chats or hype. Pure, historical market metrics for self-directed investors.
+      </p>
+      <p style={{ marginTop: 8 }}>
         <Link href="/newsletter/archive" style={{ fontSize: 12, color: 'var(--muted)' }}>Browse past issues →</Link>
       </p>
     </div>

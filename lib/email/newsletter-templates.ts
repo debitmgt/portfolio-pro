@@ -24,9 +24,15 @@ const MAILING_ADDRESS = process.env.NEWSLETTER_MAILING_ADDRESS
   ?? '[SET NEWSLETTER_MAILING_ADDRESS ENV VAR — CAN-SPAM requires a real physical mailing address here]'
 
 const TIER_LABEL: Record<CapTier, string> = {
-  large: 'Large Cap Top 25',
-  mid: 'Mid Cap Top 25',
-  small: 'Small Cap Top 25',
+  large: '🏛️ Large Cap Top 25',
+  mid: '🏗️ Mid Cap Top 25',
+  small: '🚜 Small Cap Top 25',
+}
+
+const TIER_RANGE: Record<CapTier, string> = {
+  large: 'Market cap ≥ $10B',
+  mid: 'Market cap $2B–$10B',
+  small: 'Market cap $250M–$2B',
 }
 
 const TIER_ORDER: CapTier[] = ['large', 'mid', 'small']
@@ -39,39 +45,68 @@ function fmtPct(v: number | null): string {
   return `${sign}${v.toFixed(1)}%`
 }
 
+// Finnhub simply omits peTTM for companies with negative/near-zero trailing
+// earnings rather than returning a negative number, but the field is left
+// numeric (not filtered) in case that ever changes — either way, a
+// negative P/E isn't a meaningful multiple, so both cases render "N/A".
+function fmtPE(v: number | null): string {
+  if (v == null) return 'N/A'
+  if (v < 0) return 'N/A (Neg)'
+  return `${v.toFixed(1)}x`
+}
+
+function fmtPB(v: number | null): string {
+  if (v == null) return 'N/A'
+  return `${v.toFixed(1)}x`
+}
+
 function periodTitle(periodLabel: string): string {
   const [y, m] = periodLabel.split('-').map(Number)
   const d = new Date(Date.UTC(y, (m ?? 1) - 1, 1))
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
-interface SectionRow { rank: number; symbol: string; name: string | null; returnPct: string }
+interface SectionRow {
+  rank: number
+  symbol: string
+  name: string | null
+  sector: string | null
+  peStr: string
+  pbStr: string
+  returnPct: string
+}
 interface Section { title: string; note?: string; rows: SectionRow[] }
 
 function renderSectionTable(section: Section): string {
   const rowsHtml = section.rows.length
     ? section.rows.map(r => `
         <tr>
-          <td style="padding:10px 8px;border-bottom:1px solid #2a2d36;color:#8a8f9c;font-size:13px;width:36px;">${r.rank}</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #2a2d36;">
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;color:#8a8f9c;font-size:13px;width:28px;">${r.rank}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;">
             <span style="color:#f2f3f5;font-weight:700;font-size:14px;">${r.symbol}</span>
             ${r.name ? `<span style="color:#8a8f9c;font-size:12px;"> · ${r.name}</span>` : ''}
           </td>
-          <td style="padding:10px 8px;border-bottom:1px solid #2a2d36;text-align:right;color:#ff6a00;font-weight:700;font-size:14px;">${r.returnPct}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;color:#8a8f9c;font-size:12px;">${r.sector ?? '—'}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;text-align:right;color:#b6bac4;font-size:13px;">${r.peStr}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;text-align:right;color:#b6bac4;font-size:13px;">${r.pbStr}</td>
+          <td style="padding:10px 6px;border-bottom:1px solid #2a2d36;text-align:right;color:#ff6a00;font-weight:700;font-size:14px;">${r.returnPct}</td>
         </tr>`).join('')
-    : `<tr><td colspan="3" style="padding:16px 8px;color:#8a8f9c;font-size:13px;">No ranked symbols to show this month.</td></tr>`
+    : `<tr><td colspan="6" style="padding:16px 8px;color:#8a8f9c;font-size:13px;">No ranked symbols to show this month.</td></tr>`
 
   return `
     <tr><td style="padding:20px 24px 4px 24px;">
       <h2 style="margin:0 0 2px 0;color:#f2f3f5;font-size:15px;">${section.title}</h2>
       ${section.note ? `<p style="margin:0 0 10px 0;color:#8a8f9c;font-size:12px;line-height:1.5;">${section.note}</p>` : ''}
     </td></tr>
-    <tr><td style="padding:0 24px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding:0 24px;overflow-x:auto;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="min-width:480px;">
         <tr>
-          <th align="left" style="padding:0 8px 8px 8px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Rank</th>
-          <th align="left" style="padding:0 8px 8px 8px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Symbol</th>
-          <th align="right" style="padding:0 8px 8px 8px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">1Y Return</th>
+          <th align="left" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Rank</th>
+          <th align="left" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Company</th>
+          <th align="left" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">Sector</th>
+          <th align="right" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">P/E</th>
+          <th align="right" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">P/B</th>
+          <th align="right" style="padding:0 6px 8px 6px;color:#8a8f9c;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">1Y Return</th>
         </tr>
         ${rowsHtml}
       </table>
@@ -194,10 +229,14 @@ export function renderMultiTierTop25Email(opts: {
 
   const sections: Section[] = TIER_ORDER.map(tier => ({
     title: TIER_LABEL[tier],
+    note: TIER_RANGE[tier],
     rows: (byTier[tier] ?? []).map(r => ({
       rank: r.rank,
       symbol: r.symbol,
       name: r.company_name,
+      sector: r.sector,
+      peStr: fmtPE(r.pe_ttm),
+      pbStr: fmtPB(r.pb_ratio),
       returnPct: fmtPct(r.trailing_return_1y),
     })),
   }))
@@ -212,13 +251,13 @@ export function renderMultiTierTop25Email(opts: {
     : ''
 
   const html = baseLayout({
-    preheader: `This month's Top 25 by trailing 1-year return — large, mid, and small cap`,
+    preheader: `This month's Top 25 by trailing 1-year return, with sector, P/E, and P/B — large, mid, and small cap`,
     title: `Top 25 — ${monthTitle}`,
-    intro: `The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio LLC's tracked universe. Same lists, same methodology, for every free subscriber.`,
+    intro: `The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — with sector, trailing P/E, and price-to-book for each name, from Ownfolio LLC's tracked universe. Same lists, same methodology, for every free subscriber.`,
     editorial,
     sections,
     extraSectionsHtml,
-    methodologyNote: `Ranked by trailing 1-year price return, computed identically for every tracked symbol on the 1st of each month from public market data. Cap tier (large/mid/small) is classified from live market capitalization at scoring time. The Top 50 combined list uses a separate, recency-weighted blend of trailing returns (see note above). Both are historical performance only — not tailored to you and not a signal to act now.`,
+    methodologyNote: `Ranked by trailing 1-year price return, computed identically for every tracked symbol on the 1st of each month from public market data. Cap tier (large/mid/small) is classified from live market capitalization at scoring time. Sector, trailing P/E, and price-to-book are as reported by our data provider at scoring time and shown as raw published figures — "N/A" means the provider did not report a meaningful value (most often negative or near-zero trailing earnings, in the case of P/E). The Top 50 combined list uses a separate, recency-weighted blend of trailing returns (see note above). All figures are historical only — not tailored to you and not a signal to act now.`,
     unsubscribeUrl: `${APP_URL}/api/newsletter/unsubscribe?token=${unsubscribeToken}`,
   })
 
@@ -238,7 +277,7 @@ export function renderConfirmSubscriptionEmail(opts: { confirmToken: string }): 
           <div style="font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f9c;font-weight:600;">Ownfolio LLC</div>
           <h1 style="margin:8px 0 12px 0;color:#f2f3f5;font-size:18px;">Confirm your subscription</h1>
           <p style="margin:0 0 20px 0;color:#b6bac4;font-size:13px;line-height:1.6;">
-            Click below to confirm you'd like the monthly Ownfolio LLC Top 25 — three ranked lists (large, mid, and small cap) of the 25 highest trailing 1-year returns from our tracked universe, plus a combined Top 50 recency-weighted list, sent once a month. Informational only, not financial advice.
+            Click below to confirm you'd like the monthly Ownfolio LLC Top 25 — three ranked lists (large, mid, and small cap) of the 25 highest trailing 1-year returns from our tracked universe, each with sector, trailing P/E, and price-to-book, plus a combined Top 50 recency-weighted list, sent once a month. Informational only, not financial advice.
           </p>
           <a href="${confirmUrl}" style="display:inline-block;background:#ff6a00;color:#14161c;font-weight:700;font-size:13px;padding:10px 18px;border-radius:6px;text-decoration:none;">Confirm subscription</a>
           <p style="margin:20px 0 0 0;color:#6b6f7a;font-size:11px;line-height:1.6;">
@@ -273,6 +312,7 @@ export function renderWatchlistDigestEmail(opts: {
   const sections: Section[] = TIER_ORDER
     .map(tier => ({
       title: TIER_LABEL[tier],
+      note: TIER_RANGE[tier],
       rows: matched
         .filter(r => r.cap_tier === tier)
         .sort((a, b) => a.rank - b.rank)
@@ -280,6 +320,9 @@ export function renderWatchlistDigestEmail(opts: {
           rank: r.rank,
           symbol: r.symbol,
           name: r.company_name,
+          sector: r.sector,
+          peStr: fmtPE(r.pe_ttm),
+          pbStr: fmtPB(r.pb_ratio),
           returnPct: fmtPct(r.trailing_return_1y),
         })),
     }))

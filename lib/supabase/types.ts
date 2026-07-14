@@ -80,6 +80,9 @@ export interface MonthlyRanking {
   methodology_version: string
   computed_at: string
   created_at: string
+  sector: string | null
+  pe_ttm: number | null
+  pb_ratio: number | null
 }
 
 // Optional, hand-written monthly commentary spotlight (e.g. a "story of the

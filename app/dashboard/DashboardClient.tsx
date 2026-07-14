@@ -1482,6 +1482,21 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
         <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
           Secure payment via Stripe · Cancel anytime
         </p>
+
+        {/* Solo-founder trust block. Kept to claims we can stand behind:
+            no ad sales and no broker kickbacks are true today. Deliberately
+            not claiming "we harvest no user data" — there's no privacy
+            policy live yet to back that up. Links to the existing
+            attorney-drafted disclaimer instead of writing new regulatory
+            language here. */}
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 16, textAlign: 'center' }}>
+          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 380, margin: '0 auto' }}>
+            Ownfolio is built and run by a solo founder. Your subscription funds the market-data feeds and the engineering — not ad sales, and not broker referral kickbacks.
+          </p>
+          <a href="/disclaimer" style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'underline', marginTop: 8, display: 'inline-block' }}>
+            Data &amp; Analytics — Not Advice
+          </a>
+        </div>
       </div>
     </div>
   )

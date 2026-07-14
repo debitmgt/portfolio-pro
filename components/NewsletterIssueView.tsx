@@ -8,9 +8,15 @@
 import type { MonthlyRanking, CapTier, NewsletterEditorial, WeightedReturnRanking } from '@/lib/supabase/types'
 
 const TIER_LABEL: Record<CapTier, string> = {
-  large: 'Large Cap Top 25',
-  mid: 'Mid Cap Top 25',
-  small: 'Small Cap Top 25',
+  large: '🏛️ Large Cap Top 25',
+  mid: '🏗️ Mid Cap Top 25',
+  small: '🚜 Small Cap Top 25',
+}
+
+const TIER_RANGE: Record<CapTier, string> = {
+  large: 'Market cap ≥ $10B',
+  mid: 'Market cap $2B–$10B',
+  small: 'Market cap $250M–$2B',
 }
 
 const TIER_ORDER: CapTier[] = ['large', 'mid', 'small']
@@ -19,6 +25,21 @@ function fmtPct(v: number | null): string {
   if (v == null) return '—'
   const sign = v >= 0 ? '+' : ''
   return `${sign}${v.toFixed(1)}%`
+}
+
+// Same source and same "N/A" convention as lib/email/newsletter-templates.ts
+// (Finnhub simply omits P/E for negative/near-zero trailing earnings) — keep
+// these two renderers in sync since this is the public archive of the same
+// emailed content.
+function fmtPE(v: number | null): string {
+  if (v == null) return 'N/A'
+  if (v < 0) return 'N/A (Neg)'
+  return `${v.toFixed(1)}x`
+}
+
+function fmtPB(v: number | null): string {
+  if (v == null) return 'N/A'
+  return `${v.toFixed(1)}x`
 }
 
 export function periodTitle(periodLabel: string): string {
@@ -52,7 +73,7 @@ export default function NewsletterIssueView({
         Top 25 — {periodTitle(periodLabel)}
       </h1>
       <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 28 }}>
-        The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — from Ownfolio LLC's tracked universe. Same lists every subscriber received.
+        The 25 highest trailing 1-year total returns in each of three cap tiers — large, mid, and small — with sector, trailing P/E, and price-to-book for each name, from Ownfolio LLC's tracked universe. Same lists every subscriber received.
       </p>
 
       {editorial && (
@@ -73,28 +94,35 @@ export default function NewsletterIssueView({
 
       {TIER_ORDER.map(tier => (
         <div key={tier} style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>{TIER_LABEL[tier]}</h2>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, color: 'var(--text)' }}>{TIER_LABEL[tier]}</h2>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{TIER_RANGE[tier]}</p>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 560 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '9px 14px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em', width: 36 }}>Rank</th>
-                  <th style={{ padding: '9px 14px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Symbol</th>
-                  <th style={{ padding: '9px 14px', textAlign: 'right', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>1Y Return</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em', width: 32 }}>Rank</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Company</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Sector</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>P/E</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>P/B</th>
+                  <th style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--muted)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.03em' }}>1Y Return</th>
                 </tr>
               </thead>
               <tbody>
                 {byTier[tier].length === 0 && (
-                  <tr><td colSpan={3} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--muted)' }}>No ranked symbols for this tier this month.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--muted)' }}>No ranked symbols for this tier this month.</td></tr>
                 )}
                 {byTier[tier].map(r => (
                   <tr key={r.symbol} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '9px 14px', color: 'var(--muted)' }}>{r.rank}</td>
-                    <td style={{ padding: '9px 14px' }}>
+                    <td style={{ padding: '9px 10px', color: 'var(--muted)' }}>{r.rank}</td>
+                    <td style={{ padding: '9px 10px' }}>
                       <span style={{ fontWeight: 700, color: 'var(--text)' }}>{r.symbol}</span>
                       {r.company_name && <span style={{ color: 'var(--muted)', fontSize: 12 }}> · {r.company_name}</span>}
                     </td>
-                    <td style={{ padding: '9px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--accent)' }}>{fmtPct(r.trailing_return_1y)}</td>
+                    <td style={{ padding: '9px 10px', color: 'var(--muted)', fontSize: 12 }}>{r.sector ?? '—'}</td>
+                    <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text)' }}>{fmtPE(r.pe_ttm)}</td>
+                    <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text)' }}>{fmtPB(r.pb_ratio)}</td>
+                    <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--accent)' }}>{fmtPct(r.trailing_return_1y)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -136,7 +164,7 @@ export default function NewsletterIssueView({
       )}
 
       <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-        Ranked by trailing 1-year price return, computed identically for every tracked symbol from public market data. Cap tier (large/mid/small) is classified from live market capitalization at scoring time. The Top 50 combined list (if shown) uses a separate, recency-weighted blend of trailing returns. Both are historical performance only — not tailored to any individual and not a signal to act now. Not financial advice.
+        Ranked by trailing 1-year price return, computed identically for every tracked symbol from public market data. Cap tier (large/mid/small) is classified from live market capitalization at scoring time. Sector, trailing P/E, and price-to-book are raw figures as reported by our data provider at scoring time — "N/A" means no meaningful value was reported (most often negative or near-zero trailing earnings, in the case of P/E). The Top 50 combined list (if shown) uses a separate, recency-weighted blend of trailing returns. All figures are historical performance only — not tailored to any individual and not a signal to act now. Not financial advice.
       </p>
 
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>

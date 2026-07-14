@@ -139,6 +139,9 @@ interface RawReturn {
   trailingReturn1y: number | null
   trailingReturn13w: number | null
   trailingReturn26w: number | null
+  sector: string | null
+  peTTM: number | null
+  pbAnnual: number | null
 }
 
 function sleep(ms: number) {
@@ -166,11 +169,19 @@ async function fetchRawReturn(symbol: string, key: string): Promise<RawReturn> {
       trailingReturn1y: metric['52WeekPriceReturnDaily'] ?? null,
       trailingReturn13w: metric['13WeekPriceReturnDaily'] ?? null,
       trailingReturn26w: metric['26WeekPriceReturnDaily'] ?? null,
+      // Sector/P-E/P-B — same two calls above already return these, so this
+      // costs nothing extra against the rate limit. Field names match the
+      // pattern already used in app/api/finnhub/route.ts and
+      // refresh-ticker-metrics for consistency across the app.
+      sector: profile.finnhubIndustry ?? null,
+      peTTM: metric.peBasicExclExtraTTM ?? metric.peExclExtraTTM ?? null,
+      pbAnnual: metric.pbAnnual ?? null,
     }
   } catch {
     return {
       symbol, name: null, marketCapM: null, priceCurrent: null,
       trailingReturn1y: null, trailingReturn13w: null, trailingReturn26w: null,
+      sector: null, peTTM: null, pbAnnual: null,
     }
   }
 }
@@ -219,6 +230,9 @@ export async function GET(req: NextRequest) {
     methodology_version: string
     computed_at: string
     created_at: string
+    sector: string | null
+    pe_ttm: number | null
+    pb_ratio: number | null
   }[] = []
   const top25ByTier: Record<CapTier, string[]> = { large: [], mid: [], small: [] }
 
@@ -240,6 +254,9 @@ export async function GET(req: NextRequest) {
         methodology_version: METHODOLOGY_VERSION,
         computed_at: now,
         created_at: now,
+        sector: r.sector,
+        pe_ttm: r.peTTM,
+        pb_ratio: r.pbAnnual,
       })
     })
     top25ByTier[tier] = inTier.slice(0, TOP_N).map(r => r.symbol)
