@@ -149,6 +149,21 @@ export interface WatchlistItem {
   created_at: string
 }
 
+// Messages submitted via the /support contact form (see app/api/support/route.ts).
+// urgent is set by simple keyword matching on submit so billing/account-access
+// messages can be triaged first. No public read/write policy — only the
+// service-role client (the API route, or Dwight via the Supabase dashboard)
+// touches this table.
+export interface SupportMessage {
+  id: string
+  name: string | null
+  email: string
+  message: string
+  urgent: boolean
+  status: 'open' | 'resolved'
+  created_at: string
+}
+
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
 // are plain object types, not references to a named interface. Flatten<T>
 // forces TS to compute a fresh literal type while still deriving from the
@@ -210,6 +225,12 @@ export type Database = {
         Row: Flatten<WeightedReturnRanking>
         Insert: Flatten<Partial<WeightedReturnRanking> & { period_label: string; symbol: string; rank: number; methodology_version: string; computed_at: string }>
         Update: Flatten<Partial<WeightedReturnRanking>>
+        Relationships: []
+      }
+      support_messages: {
+        Row: Flatten<SupportMessage>
+        Insert: Flatten<Partial<SupportMessage> & { email: string; message: string }>
+        Update: Flatten<Partial<SupportMessage>>
         Relationships: []
       }
     }

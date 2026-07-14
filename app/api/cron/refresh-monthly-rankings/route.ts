@@ -40,6 +40,7 @@
 // Alpha" (that needs paid-tier daily candle data).
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendFailureAlert } from '@/lib/email/alerts'
 import type { NextRequest } from 'next/server'
 
 export const maxDuration = 300
@@ -198,6 +199,7 @@ export async function GET(req: NextRequest) {
   const key = process.env.FINNHUB_API_KEY!
   const admin = createAdminClient()
 
+  try {
   const raw: RawReturn[] = []
   for (let i = 0; i < CURATED_UNIVERSE.length; i += BATCH_SIZE) {
     const batch = CURATED_UNIVERSE.slice(i, i + BATCH_SIZE)
@@ -266,6 +268,7 @@ export async function GET(req: NextRequest) {
     .from('monthly_rankings')
     .upsert(rows, { onConflict: 'period_label,symbol' })
   if (upsertError) {
+    await sendFailureAlert('refresh-monthly-rankings', `monthly_rankings upsert failed: ${upsertError.message}`)
     return NextResponse.json({ error: upsertError.message }, { status: 500 })
   }
 
@@ -323,6 +326,7 @@ export async function GET(req: NextRequest) {
     .from('weighted_return_rankings')
     .upsert(weightedRows, { onConflict: 'period_label,symbol' })
   if (weightedUpsertError) {
+    await sendFailureAlert('refresh-monthly-rankings', `weighted_return_rankings upsert failed: ${weightedUpsertError.message}`)
     return NextResponse.json({ error: weightedUpsertError.message }, { status: 500 })
   }
 
@@ -334,4 +338,9 @@ export async function GET(req: NextRequest) {
     top25ByTier,
     top50Weighted: rankedWeighted.map(r => r.symbol),
   })
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err)
+    await sendFailureAlert('refresh-monthly-rankings', detail)
+    return NextResponse.json({ error: 'Unexpected error — alert sent.' }, { status: 500 })
+  }
 }

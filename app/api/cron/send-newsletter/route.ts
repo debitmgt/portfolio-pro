@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendBatch, type BatchEmail } from '@/lib/email/resend'
+import { sendFailureAlert } from '@/lib/email/alerts'
 import { renderMultiTierTop25Email, renderWatchlistDigestEmail } from '@/lib/email/newsletter-templates'
 import type { CapTier, MonthlyRanking, WeightedReturnRanking } from '@/lib/supabase/types'
 import type { NextRequest } from 'next/server'
@@ -35,12 +36,15 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const periodLabel = new Date().toISOString().slice(0, 7)
 
+  try {
+
   const { data: allRankings, error: rankingsError } = await admin
     .from('monthly_rankings')
     .select('*')
     .eq('period_label', periodLabel)
     .order('rank', { ascending: true })
   if (rankingsError) {
+    await sendFailureAlert('send-newsletter', `monthly_rankings query failed: ${rankingsError.message}`)
     return NextResponse.json({ error: rankingsError.message }, { status: 500 })
   }
   if (!allRankings || allRankings.length === 0) {
@@ -78,6 +82,7 @@ export async function GET(req: NextRequest) {
     .eq('confirmed', true)
     .is('unsubscribed_at', null)
   if (freeError) {
+    await sendFailureAlert('send-newsletter', `newsletter_subscribers query failed: ${freeError.message}`)
     return NextResponse.json({ error: freeError.message }, { status: 500 })
   }
 
@@ -103,6 +108,7 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('plan', 'pro')
   if (proError) {
+    await sendFailureAlert('send-newsletter', `profiles (pro) query failed: ${proError.message}`)
     return NextResponse.json({ error: proError.message }, { status: 500 })
   }
   const proProfiles = (allProProfiles ?? []).filter(p => !p.newsletter_opt_out)
@@ -139,10 +145,24 @@ export async function GET(req: NextRequest) {
     sendBatch(proBatch),
   ])
 
+  if (freeResult.failed > 0 || proResult.failed > 0) {
+    await sendFailureAlert(
+      'send-newsletter',
+      `Partial send failure — free: ${freeResult.failed}/${freeBatch.length} failed, ` +
+        `pro: ${proResult.failed}/${proBatch.length} failed.\n\n` +
+        [...freeResult.errors, ...proResult.errors].join('\n')
+    )
+  }
+
   return NextResponse.json({
     ok: true,
     period: periodLabel,
     free: { attempted: freeBatch.length, ...freeResult },
     pro: { attempted: proBatch.length, skippedEmptyWatchlist: proSkippedEmptyWatchlist, ...proResult },
   })
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err)
+    await sendFailureAlert('send-newsletter', detail)
+    return NextResponse.json({ error: 'Unexpected error — alert sent.' }, { status: 500 })
+  }
 }

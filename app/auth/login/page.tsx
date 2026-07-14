@@ -17,10 +17,27 @@ declare global {
       render: (container: HTMLElement, options: Record<string, unknown>) => string
       reset: (widgetId?: string) => void
     }
+    gtag?: (...args: unknown[]) => void
   }
 }
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+
+// Google Ads conversion tracking for free-account signup. Fired here — right when
+// signup succeeds — rather than after email confirmation, because Google Ads
+// attributes a conversion using a click-id cookie set in the browser that clicked
+// the ad; confirmation can happen later or on a different device, which would break
+// attribution. Both values are set via Vercel env vars (see app/layout.tsx for the
+// site-wide Google tag itself).
+const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID
+const SIGNUP_CONVERSION_LABEL = process.env.NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL
+
+function fireSignupConversion() {
+  if (typeof window === 'undefined' || !window.gtag || !GOOGLE_ADS_ID || !SIGNUP_CONVERSION_LABEL) return
+  window.gtag('event', 'conversion', {
+    send_to: `${GOOGLE_ADS_ID}/${SIGNUP_CONVERSION_LABEL}`,
+  })
+}
 
 function LoginForm() {
   const supabase = createClient()
@@ -87,6 +104,7 @@ function LoginForm() {
         })
         if (error) throw error
         setSent(true)
+        fireSignupConversion()
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,

@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendFailureAlert } from '@/lib/email/alerts'
 import type { NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 
@@ -46,7 +47,16 @@ export async function POST(req: NextRequest) {
       .from('profiles')
       .update({ plan })
       .eq('id', userId)
-    if (error) console.error('[webhook] setPlan error:', error)
+    if (error) {
+      console.error('[webhook] setPlan error:', error)
+      // This is the case that actually matters: Stripe already has the
+      // customer's money and we failed to grant/revoke access. Never let
+      // this fail silently again (see current_period_end bug, 2026-07-03).
+      await sendFailureAlert(
+        'stripe-webhook',
+        `setPlan(${userId}, ${plan}) failed: ${error.message}\n\nUser paid/changed plan but profiles.plan was not updated — check manually.`
+      )
+    }
   }
 
   // current_period_end moved from the top-level Subscription object to each
@@ -151,6 +161,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error('[webhook] Handler error:', err)
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err)
+    await sendFailureAlert('stripe-webhook', `event ${event.type} threw:\n\n${detail}`)
     // Return 200 anyway — Stripe will not retry on 5xx but will on network errors
   }
 

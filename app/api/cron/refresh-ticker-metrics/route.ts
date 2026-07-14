@@ -20,6 +20,7 @@
 // All four sub-scores and the raw inputs are stored as-is.
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendFailureAlert } from '@/lib/email/alerts'
 import type { NextRequest } from 'next/server'
 
 export const maxDuration = 60
@@ -88,61 +89,69 @@ export async function GET(req: NextRequest) {
   const key = process.env.FINNHUB_API_KEY!
   const admin = createAdminClient()
 
-  // Only the *set of symbols* comes from user data — never any per-user figure.
-  const { data: holdingsRows, error: holdingsError } = await admin
-    .from('holdings')
-    .select('symbol')
-  if (holdingsError) {
-    return NextResponse.json({ error: holdingsError.message }, { status: 500 })
-  }
-
-  const symbols = [...new Set((holdingsRows ?? []).map(h => h.symbol))].slice(0, MAX_SYMBOLS_PER_RUN)
-  if (!symbols.length) {
-    return NextResponse.json({ ok: true, scored: 0, note: 'No held symbols to score.' })
-  }
-
-  const raw = await Promise.all(symbols.map(s => fetchRawMetrics(s, key)))
-
-  const peValues = raw.map(r => r.peRatio)
-  const growthValues = raw.map(r => r.revenueGrowthYoy)
-  const betaValues = raw.map(r => r.beta)
-
-  const now = new Date().toISOString()
-  const rows = raw.map(r => {
-    // Lower P/E and lower beta are scored as "higher" (cheaper / more stable) —
-    // this directional choice is a disclosed, fixed part of the v1 methodology,
-    // not a per-user or per-request judgment call.
-    const peRank = percentileRank(peValues, r.peRatio)
-    const valuationScore = peRank != null ? 100 - peRank : 50
-    const growthScore = percentileRank(growthValues, r.revenueGrowthYoy) ?? 50
-    const betaRank = percentileRank(betaValues, r.beta)
-    const stabilityScore = betaRank != null ? 100 - betaRank : 50
-    const marginScore = r.marginTrend === 'expanding' ? 100 : r.marginTrend === 'contracting' ? 0 : 50
-
-    return {
-      symbol: r.symbol,
-      market_cap: r.marketCap,
-      pe_ratio: r.peRatio,
-      pe_percentile: peRank,
-      revenue_growth_yoy: r.revenueGrowthYoy,
-      growth_percentile: percentileRank(growthValues, r.revenueGrowthYoy),
-      beta: r.beta,
-      stability_percentile: betaRank,
-      margin_trend: r.marginTrend,
-      valuation_score: valuationScore,
-      growth_score: growthScore,
-      margin_score: marginScore,
-      stability_score: stabilityScore,
-      methodology_version: METHODOLOGY_VERSION,
-      computed_at: now,
-      updated_at: now,
+  try {
+    // Only the *set of symbols* comes from user data — never any per-user figure.
+    const { data: holdingsRows, error: holdingsError } = await admin
+      .from('holdings')
+      .select('symbol')
+    if (holdingsError) {
+      await sendFailureAlert('refresh-ticker-metrics', `holdings query failed: ${holdingsError.message}`)
+      return NextResponse.json({ error: holdingsError.message }, { status: 500 })
     }
-  })
 
-  const { error: upsertError } = await admin.from('ticker_metrics').upsert(rows, { onConflict: 'symbol' })
-  if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 })
+    const symbols = [...new Set((holdingsRows ?? []).map(h => h.symbol))].slice(0, MAX_SYMBOLS_PER_RUN)
+    if (!symbols.length) {
+      return NextResponse.json({ ok: true, scored: 0, note: 'No held symbols to score.' })
+    }
+
+    const raw = await Promise.all(symbols.map(s => fetchRawMetrics(s, key)))
+
+    const peValues = raw.map(r => r.peRatio)
+    const growthValues = raw.map(r => r.revenueGrowthYoy)
+    const betaValues = raw.map(r => r.beta)
+
+    const now = new Date().toISOString()
+    const rows = raw.map(r => {
+      // Lower P/E and lower beta are scored as "higher" (cheaper / more stable) —
+      // this directional choice is a disclosed, fixed part of the v1 methodology,
+      // not a per-user or per-request judgment call.
+      const peRank = percentileRank(peValues, r.peRatio)
+      const valuationScore = peRank != null ? 100 - peRank : 50
+      const growthScore = percentileRank(growthValues, r.revenueGrowthYoy) ?? 50
+      const betaRank = percentileRank(betaValues, r.beta)
+      const stabilityScore = betaRank != null ? 100 - betaRank : 50
+      const marginScore = r.marginTrend === 'expanding' ? 100 : r.marginTrend === 'contracting' ? 0 : 50
+
+      return {
+        symbol: r.symbol,
+        market_cap: r.marketCap,
+        pe_ratio: r.peRatio,
+        pe_percentile: peRank,
+        revenue_growth_yoy: r.revenueGrowthYoy,
+        growth_percentile: percentileRank(growthValues, r.revenueGrowthYoy),
+        beta: r.beta,
+        stability_percentile: betaRank,
+        margin_trend: r.marginTrend,
+        valuation_score: valuationScore,
+        growth_score: growthScore,
+        margin_score: marginScore,
+        stability_score: stabilityScore,
+        methodology_version: METHODOLOGY_VERSION,
+        computed_at: now,
+        updated_at: now,
+      }
+    })
+
+    const { error: upsertError } = await admin.from('ticker_metrics').upsert(rows, { onConflict: 'symbol' })
+    if (upsertError) {
+      await sendFailureAlert('refresh-ticker-metrics', `upsert failed: ${upsertError.message}`)
+      return NextResponse.json({ error: upsertError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true, scored: rows.length, symbols: rows.map(r => r.symbol) })
+  } catch (err) {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err)
+    await sendFailureAlert('refresh-ticker-metrics', detail)
+    return NextResponse.json({ error: 'Unexpected error — alert sent.' }, { status: 500 })
   }
-
-  return NextResponse.json({ ok: true, scored: rows.length, symbols: rows.map(r => r.symbol) })
 }

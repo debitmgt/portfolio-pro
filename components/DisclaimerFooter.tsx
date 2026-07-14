@@ -21,7 +21,8 @@ export default function DisclaimerFooter({ dense = false }: { dense?: boolean })
       {DISCLAIMER_SHORT}{' '}
       <Link href="/disclaimer" className="link" style={{ fontSize: 11.5 }}>Full disclaimer</Link>.
       <br />
-      {SUPPORT_LINE}
+      {SUPPORT_LINE}{' '}
+      <Link href="/support" className="link" style={{ fontSize: 11.5 }}>Help &amp; FAQ</Link>.
     </div>
   )
 }
