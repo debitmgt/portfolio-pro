@@ -11,6 +11,9 @@ export interface Profile {
   // Top 25 subscribers are separate — see NewsletterSubscriber (opt-in).
   newsletter_opt_out: boolean
   newsletter_unsubscribe_token: string
+  welcome_email_sent_at: string | null
+  day3_email_sent_at: string | null
+  day14_email_sent_at: string | null
 }
 
 export interface Subscription {
