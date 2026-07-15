@@ -8,13 +8,14 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // Single on/off switch for accepting new Pro checkouts. Flipped off 2026-07-04
 // pending the July 6-7 securities attorney consultations on the publisher's-
-// exclusion question — Dwight wants no new paying subscribers signed up before
-// that feedback comes back, even though the underlying decision (launch
-// regardless of what counsel says) hasn't changed. Checked both server-side
-// here (app/api/stripe/checkout blocks the request outright) and in the
-// pricing page UI (buttons show "Coming soon" instead of linking to signup).
-// Flip back to true once ready to reopen — that's the only change needed.
-export const CHECKOUT_ENABLED = false
+// exclusion question, entity formation, EIN, and banking. All of that is now
+// resolved (LLC formed, attorney letter items implemented, MA sales tax
+// live, Bluevine payout account set up with the correct EIN) — flipped back
+// on 2026-07-15 to reopen Pro checkout. Checked both server-side here
+// (app/api/stripe/checkout blocks the request outright when false) and in
+// the pricing page UI (buttons show "Coming soon" instead of linking to
+// signup when false).
+export const CHECKOUT_ENABLED = true
 
 export const PLANS = {
   free: {
@@ -61,4 +62,3 @@ export const PLANS = {
       'Priority support',
     ],
   },
-} as const
