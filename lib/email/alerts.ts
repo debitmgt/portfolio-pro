@@ -8,7 +8,7 @@
 // to Vercel and the caller's own error response/logging still happens.
 import { getResendClient, fromAddress } from './resend'
 
-const ALERT_TO = process.env.ALERT_EMAIL ?? 'debitmgt@gmail.com'
+const ALERT_TO = process.env.ALERT_EMAIL ?? 'ownfolio.net@gmail.com'
 
 export async function sendFailureAlert(source: string, detail: string): Promise<void> {
   try {
