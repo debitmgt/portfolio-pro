@@ -148,9 +148,147 @@ export default function PricingPage({ searchParams }: { searchParams?: { paused?
         </div>
       </div>
 
-      {/* Full-width footer block — centered on the whole page rather than
-          nested in the two-column layout above, so it isn't offset by the
-          sticky news feed sidebar. */}
+      {/* ── How Ownfolio Works ──────────────────────────────────────────────
+          Added per user-testing feedback that the landing page needed more
+          context on what the product actually does before someone hits
+          pricing. Placed after the pricing-cards block (so the
+          attorney-mandated business-summary → pricing ordering upstream is
+          untouched) and before the footer. Numbered steps are appropriate
+          here since this is a real, ordered sequence a new user follows. */}
+      <div style={{ width: '100%', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ width: '100%', maxWidth: 1040, margin: '0 auto', padding: '56px 24px' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px', textAlign: 'center', marginBottom: 8 }}>
+            How Ownfolio works
+          </h2>
+          <p style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center', maxWidth: 520, margin: '0 auto 40px' }}>
+            Four steps from sign-up to a portfolio view you actually understand.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 28 }}>
+            {[
+              {
+                n: '01',
+                title: 'Add your holdings',
+                body: 'Enter the tickers you own, how many shares, and your cost basis. Nothing connects to a brokerage — you stay in control of your own data.',
+              },
+              {
+                n: '02',
+                title: 'Track them live',
+                body: 'Prices, gain/loss, and portfolio composition update automatically as the market moves.',
+              },
+              {
+                n: '03',
+                title: 'Go deeper, for free',
+                body: 'Returns, position status, allocation, concentration, charts, news, and drawdown alerts — all included on the free plan, no card required.',
+              },
+              {
+                n: '04',
+                title: 'Add Pro when you\u2019re ready',
+                body: 'Full fundamentals data with daily percentile scoring, industry breakdowns, and the monthly ranking newsletter.',
+              },
+            ].map(step => (
+              <div key={step.n}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.04em', marginBottom: 10 }}>
+                  {step.n}
+                </div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{step.title}</h3>
+                <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Free vs. Pro, spelled out ───────────────────────────────────────
+          Directly answers the "everything is locked" feedback by showing,
+          on the landing page itself, that most of the dashboard is usable
+          for free. Mirrors the actual gating in DashboardClient.tsx. */}
+      <div style={{ width: '100%', maxWidth: 1040, margin: '0 auto', padding: '56px 24px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px', textAlign: 'center', marginBottom: 8 }}>
+          What's included
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center', maxWidth: 520, margin: '0 auto 40px' }}>
+          Most of the dashboard is free. Pro adds a smaller set of deeper, proprietary detail.
+        </p>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '24px 26px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+              Free — no card required
+            </div>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                'Track up to 10 holdings',
+                'My Returns & Position Status',
+                'Allocation View (chart)',
+                'Concentration (per-holding breakdown)',
+                'Charts',
+                'News',
+                'Drawdown Alerts',
+              ].map(item => (
+                <li key={item} style={{ fontSize: 13.5, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                  <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--accent)', borderRadius: 8, padding: '24px 26px', boxShadow: '0 8px 28px rgba(255,106,0,.12)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+              Pro — {`$${PLANS.monthly.price}/mo`}
+            </div>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                'Unlimited holdings',
+                'Full Fundamentals (Summary, Dividends, Growth, Valuation, Profitability, Price Performance)',
+                'Daily percentile scoring & earnings history',
+                'Industry Concentration breakdown',
+                'Allocation Notes',
+                'Watchlist & monthly ranking newsletter',
+              ].map(item => (
+                <li key={item} style={{ fontSize: 13.5, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+                  <span style={{ color: 'var(--accent)', marginTop: 1, flexShrink: 0 }}>✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ── FAQ ─────────────────────────────────────────────────────────────
+          Short, practical questions — no new legal claims beyond what's
+          already established in the business summary and disclaimer. */}
+      <div style={{ width: '100%', background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+        <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '56px 24px' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px', textAlign: 'center', marginBottom: 32 }}>
+            Common questions
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {[
+              {
+                q: 'Is this financial advice?',
+                a: 'No. Ownfolio shows you data about the holdings you enter — it never tells you to buy, hold, or sell anything.',
+              },
+              {
+                q: 'Do I need to connect my brokerage account?',
+                a: 'No. You enter your holdings (ticker, shares, cost basis) manually. Ownfolio never asks for brokerage credentials.',
+              },
+              {
+                q: 'Can I cancel my subscription anytime?',
+                a: 'Yes — cancel anytime from your account\u2019s billing page, no phone call or email required.',
+              },
+              {
+                q: 'What happens if I hit the free plan\u2019s 10-holding limit?',
+                a: 'You\u2019ll be prompted to upgrade to Pro to add more. Everything you\u2019ve already added keeps working as normal.',
+              },
+            ].map(item => (
+              <div key={item.q} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '18px 22px' }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>{item.q}</div>
+                <div style={{ fontSize: 13.5, color: 'var(--text)', lineHeight: 1.6 }}>{item.a}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       <div style={{
         width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
         textAlign: 'center', padding: '0 24px 48px',

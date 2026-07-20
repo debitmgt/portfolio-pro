@@ -167,6 +167,22 @@ export interface SupportMessage {
   created_at: string
 }
 
+// A Stripe dispute/chargeback against one of our charges (see
+// app/api/stripe/webhook/route.ts). Logged so a dispute is never silent —
+// created/closed/updated/funds_withdrawn/funds_reinstated events all upsert
+// or update this row. Service-role only, no client access.
+export interface Dispute {
+  id: string
+  user_id: string | null
+  charge_id: string
+  amount: number
+  currency: string
+  reason: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
 // are plain object types, not references to a named interface. Flatten<T>
 // forces TS to compute a fresh literal type while still deriving from the
@@ -234,6 +250,12 @@ export type Database = {
         Row: Flatten<SupportMessage>
         Insert: Flatten<Partial<SupportMessage> & { email: string; message: string }>
         Update: Flatten<Partial<SupportMessage>>
+        Relationships: []
+      }
+      disputes: {
+        Row: Flatten<Dispute>
+        Insert: Flatten<Partial<Dispute> & { id: string; charge_id: string; amount: number; status: string }>
+        Update: Flatten<Partial<Dispute>>
         Relationships: []
       }
     }

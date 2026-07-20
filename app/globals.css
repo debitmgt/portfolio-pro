@@ -93,9 +93,12 @@ input::placeholder { color: var(--muted-2); }
 .btn-danger   { background: var(--red); color: #fff; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; border: 3px solid var(--surface); }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); }
+
+html { scrollbar-width: auto; scrollbar-color: var(--accent) var(--surface); }
 
 /* Homepage market ticker — auto-scrolling strip of major index quotes */
 .ticker-wrap {
