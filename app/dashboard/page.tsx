@@ -6,7 +6,7 @@ import type { Holding, Plan } from '@/lib/supabase/types'
 import { Suspense } from 'react'
 
 export default async function DashboardPage() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // Use getUser() — verifies JWT with Supabase auth server (more secure than getSession())
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,3 +33,4 @@ export default async function DashboardPage() {
     </Suspense>
   )
 }
+

@@ -69,3 +69,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, note: 'Check your email to confirm your subscription.' })
 }
+

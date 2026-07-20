@@ -7,8 +7,8 @@ import { cookies } from 'next/headers'
 import type { Database } from './types'
 
 /** Use in Server Components & Route Handlers — respects user session + RLS */
-export function createServerClient() {
-  const cookieStore = cookies()
+export async function createServerClient() {
+  const cookieStore = await cookies()
   return _createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -40,3 +40,4 @@ export function createAdminClient() {
     { auth: { persistSession: false } }
   )
 }
+

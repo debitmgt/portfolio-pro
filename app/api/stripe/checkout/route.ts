@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/pricing?paused=1', req.url))
   }
 
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -63,3 +63,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ url: checkoutSession.url })
 }
+

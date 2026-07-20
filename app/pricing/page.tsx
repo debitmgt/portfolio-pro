@@ -7,7 +7,8 @@ import MarketNewsFeed from '@/components/MarketNewsFeed'
 import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 import HeroBoston from '@/components/HeroBoston'
 
-export default function PricingPage({ searchParams }: { searchParams?: { paused?: string } }) {
+export default async function PricingPage(props: { searchParams?: Promise<{ paused?: string }> }) {
+  const searchParams = await props.searchParams;
   return (
     <main style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -371,3 +372,4 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
     </div>
   )
 }
+

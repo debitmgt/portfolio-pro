@@ -1,95 +1,222 @@
-// app/api/watchlist/route.ts
-// CRUD for a Pro user's watchlist — tickers only, never shares or cost
-// basis. This is the personalization input for the monthly digest email
-// (see app/api/cron/send-newsletter): the digest filters the same generic
-// monthly_rankings every subscriber sees down to these symbols. It's
-// intentionally a separate table/route from holdings, not an extension of it.
+// app/api/finnhub/route.ts
+// Server-side proxy so FINNHUB_API_KEY is never exposed to the browser.
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import type { NextRequest } from 'next/server'
 
+export const maxDuration = 15
 export const dynamic = 'force-dynamic'
 
-const WATCHLIST_LIMIT = 25 // matches the Top 25 list size — no reason to allow more
-
-interface ProUserError { error: NextResponse }
-interface ProUserOk { userId: string }
-
-async function requireProUser(supabase: ReturnType<typeof createServerClient>): Promise<ProUserError | ProUserOk> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-
-  const { data: profile } = await supabase.from('profiles').select('plan').eq('id', user.id).single()
-  if (profile?.plan !== 'pro') {
-    return { error: NextResponse.json({ error: 'Watchlist is a Pro feature.' }, { status: 403 }) }
-  }
-  return { userId: user.id }
-}
-
-// GET — list the current user's watchlist
-export async function GET() {
-  const supabase = createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data, error } = await supabase
-    .from('watchlist_items')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
-}
-
-// POST — add a symbol to the watchlist
-export async function POST(req: NextRequest) {
-  const supabase = createServerClient()
-  const auth = await requireProUser(supabase)
-  if ('error' in auth) return auth.error
-
-  const body = await req.json()
-  const symbol = (body.symbol as string | undefined)?.toUpperCase().trim()
-  if (!symbol) return NextResponse.json({ error: 'symbol is required' }, { status: 400 })
-
-  const { count } = await supabase
-    .from('watchlist_items')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', auth.userId)
-
-  if ((count ?? 0) >= WATCHLIST_LIMIT) {
-    return NextResponse.json({ error: `Watchlist is limited to ${WATCHLIST_LIMIT} symbols.` }, { status: 403 })
-  }
-
-  const { data, error } = await supabase
-    .from('watchlist_items')
-    .insert({ user_id: auth.userId, symbol })
-    .select()
-    .single()
-
-  if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: `${symbol} is already on your watchlist.` }, { status: 409 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-  return NextResponse.json(data, { status: 201 })
-}
-
-// DELETE — remove a symbol from the watchlist
-export async function DELETE(req: NextRequest) {
-  const supabase = createServerClient()
+export async function GET(req: NextRequest) {
+  const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const id = searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const type = searchParams.get('type')
+  const key = process.env.FINNHUB_API_KEY!
 
-  const { error } = await supabase
-    .from('watchlist_items')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
+  // ─── Fundamentals (company profile + basic financials) ───────────────────
+  // Both /stock/profile2 and /stock/metric are on Finnhub's free tier.
+  // Finnhub doesn't support batching these, so this branch handles one symbol.
+  if (type === 'fundamentals') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+    try {
+      const [profileRes, metricRes] = await Promise.all([
+        fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${key}`, {
+          next: { revalidate: 3600 },   // fundamentals change slowly — cache 1hr
+        }),
+        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${key}`, {
+          next: { revalidate: 3600 },
+        }),
+      ])
+
+      const profile = profileRes.ok ? await profileRes.json() : {}
+      const metricData = metricRes.ok ? await metricRes.json() : {}
+      const metric = metricData.metric ?? {}
+
+      // Empty object ({}) is what Finnhub returns for an unrecognized symbol
+      if (!profile.name && metric.beta == null) {
+        return NextResponse.json({ error: 'No data found for symbol' }, { status: 404 })
+      }
+
+      // Everything below comes from the same /stock/metric?metric=all call
+      // already made above — no extra Finnhub requests. Grouped to mirror a
+      // Seeking-Alpha-style category layout (Summary / Dividends / Growth /
+      // Valuation / Profitability / Price Performance), but raw figures only
+      // — no letter grades, scores, or color-coded verdicts layered on top,
+      // consistent with the impersonal/no-advice framing used site-wide.
+      return NextResponse.json({
+        symbol,
+        name: profile.name ?? null,
+        industry: profile.finnhubIndustry ?? null,
+        marketCap: profile.marketCapitalization ?? null,   // in millions USD
+        peRatio: metric.peBasicExclExtraTTM ?? metric.peExclExtraTTM ?? null,
+        week52High: metric['52WeekHigh'] ?? null,
+        week52Low: metric['52WeekLow'] ?? null,
+        beta: metric.beta ?? null,
+        logo: profile.logo ?? null,
+
+        dividends: {
+          perShareAnnual: metric.dividendPerShareAnnual ?? null,
+          indicatedAnnual: metric.dividendIndicatedAnnual ?? null,
+          yieldIndicatedAnnual: metric.dividendYieldIndicatedAnnual ?? null,
+          yieldTTM: metric.currentDividendYieldTTM ?? null,
+          payoutRatioTTM: metric.payoutRatioTTM ?? metric.payoutRatioAnnual ?? null,
+          growthRate5Y: metric.dividendGrowthRate5Y ?? null,
+        },
+        growth: {
+          epsGrowthTTMYoy: metric.epsGrowthTTMYoy ?? null,
+          epsGrowth3Y: metric.epsGrowth3Y ?? null,
+          epsGrowth5Y: metric.epsGrowth5Y ?? null,
+          revenueGrowthTTMYoy: metric.revenueGrowthTTMYoy ?? null,
+          revenueGrowth3Y: metric.revenueGrowth3Y ?? null,
+          revenueGrowth5Y: metric.revenueGrowth5Y ?? null,
+        },
+        valuation: {
+          peTTM: metric.peBasicExclExtraTTM ?? metric.peExclExtraTTM ?? null,
+          forwardPE: metric.forwardPE ?? null,
+          pegTTM: metric.pegTTM ?? null,
+          pbAnnual: metric.pbAnnual ?? null,
+          psTTM: metric.psTTM ?? null,
+          evEbitdaTTM: metric.evEbitdaTTM ?? null,
+        },
+        profitability: {
+          grossMarginTTM: metric.grossMarginTTM ?? null,
+          grossMargin5Y: metric.grossMargin5Y ?? null,
+          operatingMarginTTM: metric.operatingMarginTTM ?? null,
+          operatingMargin5Y: metric.operatingMargin5Y ?? null,
+          netProfitMarginTTM: metric.netProfitMarginTTM ?? null,
+          netProfitMargin5Y: metric.netProfitMargin5Y ?? null,
+          roeTTM: metric.roeTTM ?? null,
+          roe5Y: metric.roe5Y ?? null,
+          roaTTM: metric.roaTTM ?? null,
+          roa5Y: metric.roa5Y ?? null,
+          roiTTM: metric.roiTTM ?? null,
+          roi5Y: metric.roi5Y ?? null,
+        },
+        pricePerformance: {
+          fiveDay: metric['5DayPriceReturnDaily'] ?? null,
+          thirteenWeek: metric['13WeekPriceReturnDaily'] ?? null,
+          twentySixWeek: metric['26WeekPriceReturnDaily'] ?? null,
+          fiftyTwoWeek: metric['52WeekPriceReturnDaily'] ?? null,
+          yearToDate: metric.yearToDatePriceReturnDaily ?? null,
+          monthToDate: metric.monthToDatePriceReturnDaily ?? null,
+          week52HighDate: metric['52WeekHighDate'] ?? null,
+          week52LowDate: metric['52WeekLowDate'] ?? null,
+        },
+      })
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch fundamentals' }, { status: 502 })
+    }
+  }
+
+  // ─── Company news (live headlines for a held ticker) ──────────────────────
+  // Finnhub's free-tier /company-news endpoint requires a from/to date range.
+  // We pull the last 7 days and cap the count client-side.
+  if (type === 'news') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+
+    const to = new Date()
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}&from=${fmt(from)}&to=${fmt(to)}&token=${key}`,
+        { next: { revalidate: 900 } }   // headlines don't need to be more than ~15min fresh
+      )
+      if (!res.ok) return NextResponse.json({ error: 'Failed to fetch news' }, { status: 502 })
+
+      const raw: Array<{ headline: string; source: string; url: string; datetime: number; summary: string }> = await res.json()
+
+      const items = (Array.isArray(raw) ? raw : [])
+        .filter(a => a.headline && a.url)
+        .sort((a, b) => b.datetime - a.datetime)
+        .slice(0, 8)
+        .map(a => ({
+          headline: a.headline,
+          source: a.source,
+          url: a.url,
+          datetime: a.datetime * 1000,   // Finnhub returns seconds; JS Date wants ms
+          summary: a.summary,
+        }))
+
+      return NextResponse.json({ symbol, items })
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch news' }, { status: 502 })
+    }
+  }
+
+  // ─── Earnings history (quarterly EPS actual vs. estimate) ─────────────────
+  // /stock/earnings is still on Finnhub's free tier. It returns the company's
+  // most recent quarters of EPS surprises; we keep the last 4 (~1 year).
+  // Cached 24hrs since this only changes once a quarter, right after earnings.
+  if (type === 'earnings') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(symbol)}&token=${key}`,
+        { next: { revalidate: 86400 } }
+      )
+      if (!res.ok) return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 502 })
+
+      const raw: Array<{
+        actual: number | null
+        estimate: number | null
+        period: string
+        quarter: number
+        surprisePercent: number | null
+        year: number
+      }> = await res.json()
+
+      const items = (Array.isArray(raw) ? raw : [])
+        .sort((a, b) => new Date(b.period).getTime() - new Date(a.period).getTime())
+        .slice(0, 4)   // last 4 quarters ≈ 1 year of history
+        .map(q => ({
+          period: q.period,
+          quarter: q.quarter,
+          year: q.year,
+          actual: q.actual,
+          estimate: q.estimate,
+          surprisePercent: q.surprisePercent,
+        }))
+
+      return NextResponse.json({ symbol, items })
+    } catch {
+      return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 502 })
+    }
+  }
+
+  // ─── Live quotes ───────────────────────────────────────────────────────────
+  const symbols = searchParams.get('symbols')?.split(',').map(s => s.trim()).filter(Boolean) ?? []
+
+  if (!symbols.length) return NextResponse.json({})
+
+  // Limit to 20 symbols per call to stay within Finnhub free-tier rate limits
+  const limited = symbols.slice(0, 20)
+  const results: Record<string, number> = {}
+
+  await Promise.all(
+    limited.map(async (sym) => {
+      try {
+        const res = await fetch(
+          `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`,
+          { next: { revalidate: 30 } }   // cache 30s at the edge
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.c && data.c > 0) results[sym] = data.c  // c = current price
+      } catch {
+        // Skip failed symbols silently — UI shows '—' for missing prices
+      }
+    })
+  )
+
+  return NextResponse.json(results)
 }

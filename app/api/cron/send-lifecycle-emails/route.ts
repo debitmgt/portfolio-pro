@@ -122,3 +122,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unexpected error — alert sent.' }, { status: 500 })
   }
 }
+

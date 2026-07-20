@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    const supabase = createServerClient()
+    const supabase = await createServerClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       // Use the app URL from env in production to avoid redirect issues behind Vercel's proxy
@@ -28,3 +28,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(`${origin}/auth/login?error=Could+not+authenticate`)
 }
+

@@ -26,3 +26,4 @@ export default function DisclaimerFooter({ dense = false }: { dense?: boolean })
     </div>
   )
 }
+

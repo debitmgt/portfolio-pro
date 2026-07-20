@@ -86,3 +86,4 @@ export function renderDay14Email(): { subject: string; html: string } {
     html: wrap('Your dashboard, whenever you want it.', 'Still here, still boring', body, 'Open your dashboard', `${APP_URL}/dashboard`),
   }
 }
+

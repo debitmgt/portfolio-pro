@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test:webhook:create": "stripe fixtures scripts/stripe-fixtures/subscription-created.json",
     "test:webhook:cancel": "stripe fixtures scripts/stripe-fixtures/subscription-canceled.json",
     "test:webhook:verify": "node --env-file=.env.local scripts/verify-webhook-sync.mjs"
@@ -15,16 +15,22 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.43.0",
     "@vercel/analytics": "^2.0.1",
-    "next": "14.2.35",
-    "react": "^18",
-    "react-dom": "^18",
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "resend": "^4.0.1",
     "stripe": "^22.3.0"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.10",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3"
   }
 }

@@ -349,3 +349,4 @@ export function renderWatchlistDigestEmail(opts: {
 
   return { subject: `Your Watchlist Digest — ${monthTitle}`, html }
 }
+

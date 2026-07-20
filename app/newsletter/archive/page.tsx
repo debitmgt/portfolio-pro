@@ -14,7 +14,7 @@ import { periodTitle } from '@/components/NewsletterIssueView'
 export const revalidate = 3600
 
 export default async function NewsletterArchivePage() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   const { data } = await supabase
     .from('monthly_rankings')
@@ -64,3 +64,4 @@ export default async function NewsletterArchivePage() {
     </main>
   )
 }
+

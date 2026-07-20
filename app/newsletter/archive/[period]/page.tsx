@@ -11,13 +11,14 @@ import NewsletterIssueView from '@/components/NewsletterIssueView'
 
 export const revalidate = 3600
 
-export default async function NewsletterArchiveIssuePage({
-  params,
-}: {
-  params: { period: string }
-}) {
+export default async function NewsletterArchiveIssuePage(
+  props: {
+    params: Promise<{ period: string }>
+  }
+) {
+  const params = await props.params;
   const periodLabel = params.period
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   const [{ data: rankings }, { data: editorial }, { data: weightedTop50 }] = await Promise.all([
     supabase

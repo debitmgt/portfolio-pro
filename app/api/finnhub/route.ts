@@ -8,7 +8,7 @@ export const maxDuration = 15
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -220,3 +220,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(results)
 }
+

@@ -30,3 +30,4 @@ export async function sendFailureAlert(source: string, detail: string): Promise<
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
+

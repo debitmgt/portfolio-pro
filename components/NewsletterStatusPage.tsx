@@ -22,3 +22,4 @@ export function NewsletterStatusPage({ eyebrow, title, body, extraLink }: {
     </main>
   )
 }
+

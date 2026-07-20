@@ -38,3 +38,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(new URL('/newsletter/unsubscribe-error', req.url))
 }
+

@@ -52,3 +52,4 @@ export const TERMS_OF_USE = [
     ],
   },
 ] as const
+

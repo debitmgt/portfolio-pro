@@ -65,3 +65,4 @@ export async function sendBatch(emails: BatchEmail[]): Promise<{ sent: number; f
 
   return { sent, failed, errors }
 }
+
