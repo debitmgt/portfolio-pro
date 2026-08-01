@@ -36,3 +36,9 @@ next-env.d.ts
 
 .vercel
 .env*
+
+monthly_videos/
+__pycache__/
+*.mp4
+test_frame.png
+_frames_tmp/
