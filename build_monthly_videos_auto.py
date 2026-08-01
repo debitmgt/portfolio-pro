@@ -218,15 +218,17 @@ def build_part_video(rows, tier_label, month_label, visible_ranks, part_num, tot
     print(f"  -> {out_path}")
 
 
-def run(voice_id, only_tier=None, only_part=None):
+def run(voice_id=None, only_tier=None, only_part=None):
     env = load_env_local()
     supabase_url = env.get("NEXT_PUBLIC_SUPABASE_URL")
     service_key = env.get("SUPABASE_SERVICE_ROLE_KEY")
     elevenlabs_key = env.get("ELEVENLABS_API_KEY")
+    voice_id = voice_id or env.get("ELEVENLABS_VOICE_ID")
     missing = [name for name, val in [
         ("NEXT_PUBLIC_SUPABASE_URL", supabase_url),
         ("SUPABASE_SERVICE_ROLE_KEY", service_key),
         ("ELEVENLABS_API_KEY", elevenlabs_key),
+        ("ELEVENLABS_VOICE_ID or --voice-id", voice_id),
     ] if not val]
     if missing:
         print(f"Missing required values in .env.local: {', '.join(missing)}")
@@ -265,7 +267,7 @@ def run(voice_id, only_tier=None, only_part=None):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--voice-id", required=True)
+    p.add_argument("--voice-id")
     p.add_argument("--tier", choices=["large","mid","small"])
     p.add_argument("--part", type=int)
     args = p.parse_args()
