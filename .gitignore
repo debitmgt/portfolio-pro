@@ -48,3 +48,6 @@ test_*.png
 
 # voice assets, not source
 Voice ID.zip
+
+# secrets, never commit
+CRON.txt
