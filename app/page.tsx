@@ -57,6 +57,8 @@ export default async function Home() {
       const row = {
         rank: r.rank,
         symbol: r.symbol,
+        // Supabase types company_name as nullable. Fall back to the ticker so a
+        // missing name renders as the symbol rather than an empty cell.
         company_name: r.company_name ?? r.symbol,
         trailing_return_1y: Number(r.trailing_return_1y),
       }
@@ -91,7 +93,7 @@ export default async function Home() {
         <div className="ofh-wrap ofh-hero-grid">
           <div>
             {monthLabel && (
-              <p className="ofh-eyebrow">Monthly rankings — <b>{monthLabel}</b></p>
+              <p className="ofh-eyebrow">Monthly rankings — <span className="ofh-eyebrow-month">{monthLabel}</span></p>
             )}
             <h1>Ranks 2 through 24 are behind a free account.</h1>
             <p className="ofh-lede">
@@ -134,10 +136,11 @@ export default async function Home() {
               </p>
             </div>
             <div className="ofh-card">
-              <h3>Track three holdings</h3>
+              <h3>Track {FREE_LIMIT} holdings</h3>
               <p>
-                Add up to three positions to the Tracker and Watchlist and follow
-                cost basis, market value, and return since purchase.
+                Add up to {FREE_LIMIT} positions and follow cost basis, market value,
+                and return since purchase — plus returns, allocation, concentration,
+                charts, news, and drawdown alerts, all on the free plan.
               </p>
             </div>
           </div>
@@ -147,10 +150,11 @@ export default async function Home() {
       {/* ---------------- tab matrix ---------------- */}
       <section id="features">
         <div className="ofh-wrap">
-          <h2>Ten tabs. Two of them are free.</h2>
+          <h2>Most of the dashboard is free.</h2>
           <p className="ofh-note">
-            Ownfolio publishes data and analytics for people who already own their
-            positions. Nothing here is a buy or sell recommendation.
+            Eleven tabs. Eight of them work on the free plan. Ownfolio publishes data
+            and analytics for people who already own their positions — nothing here is
+            a buy or sell recommendation.
           </p>
           <div className="ofh-tabs">
             {TABS.map((t) => (
@@ -159,8 +163,8 @@ export default async function Home() {
                   <h3>{t.name}</h3>
                   <p>{t.desc}</p>
                 </div>
-                <span className={t.pro ? 'ofh-badge ofh-badge-pro' : 'ofh-badge ofh-badge-free'}>
-                  {t.pro ? 'Pro' : 'Free · 3 max'}
+                <span className={PRO_ONLY_TABS.includes(t.name) ? 'ofh-badge ofh-badge-pro' : 'ofh-badge ofh-badge-free'}>
+                  {PRO_ONLY_TABS.includes(t.name) ? 'Pro' : 'Free'}
                 </span>
               </div>
             ))}
@@ -202,17 +206,24 @@ export default async function Home() {
   )
 }
 
+// Mirrors app/dashboard/DashboardClient.tsx. FREE_LIMIT and PRO_ONLY_TABS are
+// the values actually enforced there — if they change, change them here too.
+// This page shows no prices — it links to /pricing, which renders from PLANS.
+const FREE_LIMIT = 10
+const PRO_ONLY_TABS = ['Fundamentals', 'Watchlist', 'Risk']
+
 const TABS = [
-  { name: 'Tracker', pro: false, desc: 'Symbol, shares, cost per share, current price, market value, gain or loss, and trailing stop level.' },
-  { name: 'Watchlist', pro: false, desc: "Names you're following but don't own yet, with live pricing." },
-  { name: 'My Returns', pro: true, desc: 'Holdings sorted by return since your own purchase price.' },
-  { name: 'Fundamentals', pro: true, desc: 'Dividends, growth, valuation, profitability, and four percentile scores per ticker, computed daily.' },
-  { name: 'Charts', pro: true, desc: 'Portfolio allocation by symbol and gain/loss by position.' },
-  { name: 'Allocation View', pro: true, desc: 'Current holdings against the targets you set, with small positions flagged.' },
-  { name: 'News', pro: true, desc: 'Live headlines for each company you hold. Headlines only, no commentary.' },
-  { name: 'Position Status', pro: true, desc: 'How each position sits relative to its cost basis and stop threshold.' },
-  { name: 'Concentration', pro: true, desc: 'Share of portfolio per holding, and the same breakdown grouped by industry.' },
-  { name: 'Drawdown Alerts', pro: true, desc: "Notification when a position reaches the threshold you've set for it." },
+  { name: 'Tracker', desc: 'Symbol, shares, cost per share, current price, market value, gain or loss, and trailing stop level.' },
+  { name: 'My Returns', desc: 'Holdings sorted by return since your own purchase price.' },
+  { name: 'Fundamentals', desc: 'Dividends, growth, valuation, profitability, and daily percentile scores per ticker.' },
+  { name: 'Charts', desc: 'Portfolio allocation by symbol and gain/loss by position.' },
+  { name: 'Allocation View', desc: 'Current holdings against the targets you set, with small positions flagged.' },
+  { name: 'News', desc: 'Live headlines for each company you hold. Headlines only, no commentary.' },
+  { name: 'Position Status', desc: 'How each position sits relative to its cost basis and stop threshold.' },
+  { name: 'Concentration', desc: 'Share of portfolio per holding, and the same breakdown grouped by industry.' },
+  { name: 'Drawdown Alerts', desc: "Notification when a position reaches the threshold you've set for it." },
+  { name: 'Risk', desc: 'Per-holding and portfolio beta.' },
+  { name: 'Watchlist', desc: "Names you're following but don't own yet, with live pricing." },
 ]
 
 /* Every colour below resolves to a variable already defined in globals.css,
@@ -228,7 +239,7 @@ const CSS = `
 .ofh a{color:inherit}
 .ofh :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
 .ofh-eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 18px}
-.ofh-eyebrow b{color:var(--accent);font-weight:600}
+.ofh-eyebrow-month{color:var(--accent);font-weight:600}
 .ofh-lede{font-size:17px;color:var(--muted);max-width:52ch}
 .ofh-note{color:var(--muted);max-width:56ch;margin-bottom:34px}
 .ofh-center{margin-left:auto;margin-right:auto;margin-bottom:26px}
