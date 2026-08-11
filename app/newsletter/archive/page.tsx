@@ -5,6 +5,12 @@
 // for Server Component reads (see lib/supabase/server.ts). Works because
 // monthly_rankings already has a public SELECT policy
 // ("monthly_rankings readable by anyone").
+//
+// The newest period is flagged here because it is gated for signed-out
+// visitors on the per-issue page — see app/newsletter/archive/[period]/page.tsx.
+// The marker is deliberately shown to everyone rather than varying by session,
+// which keeps this route cacheable; a signed-in user simply finds the full
+// issue behind it.
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase/server'
 import { periodTitle } from '@/components/NewsletterIssueView'
@@ -33,7 +39,7 @@ export default async function NewsletterArchivePage() {
           Newsletter Archive
         </h1>
         <p style={{ color: 'var(--muted)', fontSize: 14.5, marginBottom: 32 }}>
-          Every past issue of the Top 25 — large, mid, and small cap — plus the combined Top 50 recency-weighted list, stays here permanently, whether or not you were subscribed at the time.
+          Every issue stays here permanently, whether or not you were subscribed at the time. The current month opens with a free account; earlier issues are open to everyone.
         </p>
 
         {periods.length === 0 && (
@@ -41,7 +47,7 @@ export default async function NewsletterArchivePage() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {periods.map(p => (
+          {periods.map((p, i) => (
             <Link
               key={p}
               href={`/newsletter/archive/${p}`}
@@ -51,7 +57,18 @@ export default async function NewsletterArchivePage() {
                 background: 'var(--surface)', border: '1px solid var(--border)', color: 'inherit',
               }}
             >
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{periodTitle(p)}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{periodTitle(p)}</span>
+                {i === 0 && (
+                  <span style={{
+                    fontSize: 10.5, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700,
+                    color: 'var(--accent)', background: 'var(--accent-tint)',
+                    border: '1px solid var(--accent)', borderRadius: 3, padding: '3px 7px',
+                  }}>
+                    Free with an account
+                  </span>
+                )}
+              </span>
               <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>View issue →</span>
             </Link>
           ))}
@@ -64,4 +81,3 @@ export default async function NewsletterArchivePage() {
     </main>
   )
 }
-
