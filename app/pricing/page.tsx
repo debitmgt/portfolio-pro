@@ -364,12 +364,11 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
           style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, opacity: 0.5, cursor: 'not-allowed' }}
         >{cta}</button>
       ) : (
-        <Link href={ctaHref}>
-          <button
-            className={highlight ? 'btn-primary' : 'btn-outline'}
-            style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600 }}
-          >{cta}</button>
-        </Link>
+        <Link
+          href={ctaHref}
+          className={highlight ? 'btn-primary' : 'btn-outline'}
+          style={{ display: 'block', width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, textAlign: 'center', borderRadius: 4 }}
+        >{cta}</Link>
       )}
     </div>
   )

@@ -128,10 +128,15 @@ export default async function NewsletterArchiveIssuePage(
         <p style={{ fontSize: 13.5, color: 'var(--muted)', marginBottom: 12 }}>
           Get next month&apos;s issue in your inbox, free.
         </p>
-        <Link href="/pricing#newsletter">
-          <button className="btn-primary" style={{ padding: '10px 22px', fontSize: 14, fontWeight: 600 }}>
-            Subscribe for free
-          </button>
+        <Link
+          href="/pricing#newsletter"
+          className="btn-primary"
+          style={{
+            display: 'inline-block', padding: '10px 22px', fontSize: 14,
+            fontWeight: 600, borderRadius: 4,
+          }}
+        >
+          Subscribe for free
         </Link>
       </div>
     </main>

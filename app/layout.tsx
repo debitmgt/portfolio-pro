@@ -29,6 +29,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        {/* First focusable element on every page, so a keyboard user can jump
+            past the nav instead of tabbing through it on each visit
+            (WCAG 2.4.1). Styling lives in globals.css — it is off-screen until
+            focused rather than display:none, which would drop it from the tab
+            order and defeat the point. The target #main-content is provided by
+            the wrapper below. */}
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+
         {GOOGLE_ADS_ID && (
           <>
             <Script
@@ -55,7 +63,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             })(window, document, "clarity", "script", "xspglh9wwc");
           `}
         </Script>
-        {children}
+
+        {/* tabIndex={-1} makes this focusable as a skip target without putting
+            it in the normal tab order. A plain div is used rather than <main>
+            because several pages render their own <main>, and nesting them
+            would produce two main landmarks on the same page. */}
+        <div id="main-content" tabIndex={-1}>
+          {children}
+        </div>
+
         <Analytics />
       </body>
     </html>

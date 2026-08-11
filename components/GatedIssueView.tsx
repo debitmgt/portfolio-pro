@@ -138,10 +138,18 @@ export default function GatedIssueView({
           A free account opens all 75 names across the three tiers, plus the
           combined Top 50 weighted list.
         </p>
-        <Link href="/auth/login?mode=signup">
-          <button className="btn-primary" style={{ padding: '11px 24px', fontSize: 14.5, fontWeight: 600 }}>
-            Create free account
-          </button>
+        {/* Styled anchor rather than a link wrapping a button. Nesting a button inside a link
+            produces invalid HTML, breaks keyboard focus order, and makes
+            screen readers announce an ambiguous target. */}
+        <Link
+          href="/auth/login?mode=signup"
+          className="btn-primary"
+          style={{
+            display: 'inline-block', padding: '11px 24px', fontSize: 14.5,
+            fontWeight: 600, borderRadius: 4,
+          }}
+        >
+          Create free account
         </Link>
         <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '12px 0 0' }}>
           No card required · Email address only
