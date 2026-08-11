@@ -100,11 +100,12 @@ export default function HeroBostonAnimated({ variant }: { variant: 'a' | 'b' }) 
           transition: 'opacity 0.6s ease 0.36s, transform 0.6s ease 0.36s',
         }}
       >
-        <a href="/auth/login" onClick={() => track('signup_clicked', { variant, source: 'hero' })}>
-          <button
+        <a href="/auth/login?mode=signup" onClick={() => track('signup_clicked', { variant, source: 'hero' })}>
+          <span
             style={{
+              display: 'inline-block',
               background: 'var(--accent)',
-              color: '#fff',
+              color: 'var(--on-accent)',
               padding: '13px 24px',
               fontSize: 15,
               fontWeight: 700,
@@ -113,7 +114,7 @@ export default function HeroBostonAnimated({ variant }: { variant: 'a' | 'b' }) 
             }}
           >
             Take control — start free
-          </button>
+          </span>
         </a>
       </div>
     </div>

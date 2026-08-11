@@ -113,9 +113,9 @@ export default async function HeroBoston() {
             bar and into the centered block below, per the attorney letter. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
           <a href="/auth/login">
-            <button
+            <span
               style={{
-                background: 'rgba(255,255,255,0.1)',
+                display: 'inline-block', background: 'rgba(255,255,255,0.1)',
                 color: '#ffffff',
                 padding: '11px 22px',
                 fontSize: 14.5,
@@ -125,7 +125,7 @@ export default async function HeroBoston() {
               }}
             >
               Sign in
-            </button>
+            </span>
           </a>
         </div>
 
@@ -151,7 +151,7 @@ export default async function HeroBoston() {
             <HeroPlanPill
               label={PLANS.free.name}
               sub="$0"
-              href="/auth/login"
+              href="/auth/login?mode=signup"
             />
             <HeroPlanPill
               label={PLANS.monthly.name}
@@ -193,8 +193,8 @@ function HeroPlanPill({ label, sub, href, highlight, badge }: {
           border: highlight ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.16)',
         }}
       >
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>{label}</div>
-        <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.85)' }}>{sub}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: highlight ? 'var(--on-accent)' : '#fff' }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: highlight ? 'rgba(20,22,28,0.9)' : 'rgba(255,255,255,0.85)' }}>{sub}</div>
       </div>
       {badge && (
         <span

@@ -26,6 +26,11 @@
   --accent-hover: #e05e00;
   --accent-tint:  #fff2e8;
 
+  /* Text on an --accent background. White measures only 2.87:1 there, under
+     the 4.5:1 small text needs; this dark ink measures 6.30:1 and keeps the
+     brand orange unchanged. */
+  --on-accent:    #14161c;
+
   /* Focus ring. --accent is only 2.87:1 on white, just under the 3:1 needed
      for a focus indicator to be a reliable non-text contrast cue, so the ring
      uses a darker shade while everything else keeps the brand orange. */
@@ -135,7 +140,7 @@ input:focus, select:focus, textarea:focus {
 }
 input::placeholder { color: var(--muted-2); }
 
-.btn-primary  { background: var(--accent); color: #fff; }
+.btn-primary  { background: var(--accent); color: var(--on-accent); }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); opacity: 1; }
 .btn-outline  { background: #fff; border: 1px solid var(--border-interactive); color: var(--text); }
 .btn-outline:hover:not(:disabled) { background: var(--surface); opacity: 1; }
