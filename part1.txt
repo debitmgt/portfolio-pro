@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""
+build_monthly_videos_auto.py
+
+Rebuilt version — the original copy of this script (which fetched Supabase
+data automatically, generated narration text, called ElevenLabs for voice,
+and merged audio into the rendered video for all 3 cap tiers) was lost; it
+was never committed to git and had no backup, so this reconstructs the same
+pipeline from the run_monthly_videos_log.txt output plus the table-rendering
+code, and adds the new 13-part spotlight series on top.
+
+For each of the 3 cap tiers (large/mid/small), this:
+  1. Fetches that tier's current-month Top-N ranking rows from Supabase
+  2. For each of the 13 parts (see build_episode_list), generates narration
+     text describing that part's spotlighted rank(s)
+  3. Calls ElevenLabs to synthesize that narration as audio
+  4. Renders the silent teaser video, timed to match the narration length
+  5. Merges video + narration into a final .mp4
+
+Run with:  python build_monthly_videos_auto.py --voice-id <ELEVENLABS_VOICE_ID>
+
+Requires a .env.local file in the same folder with:
+  NEXT_PUBLIC_SUPABASE_URL=...
+  SUPABASE_SERVICE_ROLE_KEY=...
+  ELEVENLABS_API_KEY=...
+"""
+import argparse
+import datetime
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.request
+import urllib.error
+
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+W, H = 1080, 1920
+ORANGE = (255, 106, 0)
+WHITE = (255, 255, 255)
+BLACK = (20, 20, 20)
+GRAY = (110, 110, 110)
+GREEN = (15, 110, 86)
+RED = (163, 45, 45)
+HEADER_H = 190
+ROW_H = 68
+
+TIERS = [
+    ("large", "Large Cap"),
+    ("mid", "Mid Cap"),
+    ("small", "Small Cap"),
+]
+
+OUT_DIR = "./monthly_videos"
+
+
+# ─── Env loading (reads .env.local directly — this script runs standalone,
+# not through Next.js, so it can't rely on process.env being populated) ─────
+def load_env_local(path=".env.local"):
+    env = {}
+    if not os.path.exists(path):
+        return env
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            env[key.strip()] = value.strip().strip('"').strip("'")
+    return env
+
+
+# ─── Fonts (unchanged from the original rendering code) ────────────────────
+def _find_font(candidates, size):
+    for path in candidates:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+FONT_DIR = "/usr/share/fonts/truetype/dejavu/"
+WIN_FONT_DIR = "C:\\Windows\\Fonts\\"
+
+_BOLD_CANDIDATES = [FONT_DIR + "DejaVuSans-Bold.ttf", WIN_FONT_DIR + "arialbd.ttf", WIN_FONT_DIR + "segoeuib.ttf"]
+_REG_CANDIDATES = [FONT_DIR + "DejaVuSans.ttf", WIN_FONT_DIR + "arial.ttf", WIN_FONT_DIR + "segoeui.ttf"]
+_SERIF_BOLD_CANDIDATES = [FONT_DIR + "DejaVuSerif-Bold.ttf", WIN_FONT_DIR + "georgiab.ttf", WIN_FONT_DIR + "timesbd.ttf"] + _BOLD_CANDIDATES
+
+F_BOLD = _find_font(_BOLD_CANDIDATES, 26)
+F_REG = _find_font(_REG_CANDIDATES, 22)
+F_HEADER = _find_font(_BOLD_CANDIDATES, 40)
+F_SUB = _find_font(_REG_CANDIDATES, 24)
+F_RANK = _find_font(_BOLD_CANDIDATES, 24)
+F_LOGO_S = _find_font(_BOLD_CANDIDATES, 34)
+F_CTA = _find_font(_BOLD_CANDIDATES, 36)
+F_LOGO_CARD = _find_font(_SERIF_BOLD_CANDIDATES, 54)
+
+
+# ─── Rendering (unchanged mechanics from today's rebuild) ──────────────────
+def render_logo_card():
+    img = Image.new("RGB", (W, H), WHITE)
+    d = ImageDraw.Draw(img)
+    text = "Ownfolio.net"
+    bbox = d.textbbox((0, 0), text, font=F_LOGO_CARD)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    d.text(((W - tw) / 2, (H - th) / 2 - bbox[1]), text, font=F_LOGO_CARD, fill=ORANGE)
+    return img
+
+def draw_header(d, tier_label, month_label, row_count=25):
+    d.rectangle([0, 0, W, HEADER_H], fill=ORANGE)
+    d.rectangle([50, 55, 110, 115], fill=WHITE)
+    bbox = d.textbbox((0, 0), "O", font=F_LOGO_S)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    d.text((80 - tw / 2, 85 - th / 2 - bbox[1]), "O", font=F_LOGO_S, fill=ORANGE)
+    d.text((130, 48), "OWNFOLIO.NET", font=F_HEADER, fill=WHITE)
+    d.text((130, 105), f"{tier_label} top {row_count} - {month_label}", font=F_SUB, fill=WHITE)
+
+def draw_row(d, y, row):
+    rank, ticker, name, ret = row["rank"], row["ticker"], row["name"], row["ret"]
+    bg = (247, 247, 245) if rank % 2 == 0 else WHITE
+    d.rectangle([0, y, W, y + ROW_H], fill=bg)
+    d.text((24, y + ROW_H / 2 - 12), str(rank), font=F_RANK, fill=GRAY)
+    d.text((80, y + ROW_H / 2 - 14), ticker, font=F_BOLD, fill=BLACK)
+    d.text((230, y + ROW_H / 2 - 12), name[:22], font=F_REG, fill=GRAY)
+    ret_color = GREEN if ret >= 0 else RED
+    ret_text = f"{'+' if ret >= 0 else ''}{ret:.1f}%"
+    bbox = d.textbbox((0, 0), ret_text, font=F_BOLD)
+    tw = bbox[2] - bbox[0]
+    d.text((W - 40 - tw, y + ROW_H / 2 - 14), ret_text, font=F_BOLD, fill=ret_color)
+
+def render_table_variant(rows, tier_label, month_label, visible_ranks):
+    total_h = HEADER_H + len(rows) * ROW_H
+    img = Image.new("RGB", (W, total_h), WHITE)
+    d = ImageDraw.Draw(img)

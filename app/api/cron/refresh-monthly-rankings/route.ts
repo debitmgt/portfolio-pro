@@ -290,11 +290,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: weightedUpsertError.message }, { status: 500 })
   }
 
+  // ── Chain the newsletter ───────────────────────────────────────────────
+  // Rankings are now in the database, so trigger the monthly newsletter right
+  // away rather than relying on a separate fixed-time cron (which used to run
+  // at 08:00 UTC and would send nothing if this job finished late). The
+  // newsletter has its own already-sent guard, so a re-run of this job won't
+  // send twice. Any newsletter failure is logged but never fails this route —
+  // the rankings write is the critical part and has already succeeded.
+  let newsletterTriggered = false
+  try {
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.ownfolio.net'
+    const nlRes = await fetch(`${base}/api/cron/send-newsletter`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+    })
+    newsletterTriggered = nlRes.ok
+    if (!nlRes.ok) {
+      const body = await nlRes.text()
+      await sendFailureAlert('refresh-monthly-rankings', `Rankings succeeded but newsletter trigger returned ${nlRes.status}: ${body}`)
+    }
+  } catch (nlErr) {
+    const detail = nlErr instanceof Error ? nlErr.message : String(nlErr)
+    await sendFailureAlert('refresh-monthly-rankings', `Rankings succeeded but newsletter trigger threw: ${detail}`)
+  }
+
   return NextResponse.json({
     ok: true,
     period: periodLabel,
     scored: rows.length,
     unscored: raw.length - scorable.length,
+    newsletterTriggered,
     top25ByTier,
     top50Weighted: rankedWeighted.map(r => r.symbol),
   })

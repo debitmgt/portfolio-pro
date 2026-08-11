@@ -59,6 +59,11 @@ export async function GET(req: NextRequest) {
     cancel_url: `${baseUrl}/pricing`,
     // Pass user ID so the webhook can find them even before customer lookup is set up
     metadata: { supabase_user_id: user.id },
+    // First-month discount ($9 -> $4.95) applied automatically on Monthly only.
+    // This route is only hit on the free->paid upgrade path (existing Pro
+    // users manage/renew via the billing portal instead), so every checkout
+    // that reaches here is genuinely a first month for that customer.
+    ...(plan === 'monthly' ? { discounts: [{ coupon: 'FIRSTMONTH495' }] } : {}),
   })
 
   return NextResponse.json({ url: checkoutSession.url })

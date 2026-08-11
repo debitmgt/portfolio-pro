@@ -1,0 +1,14 @@
+Large Cap script: Number one this month — Arrowhead Pharmaceuticals, up four hundred and six percent. That's out of the Large Cap top 26, ranked by trailing return. Ranks two through twenty-five? Free to see. No card needed — link's in the bio.
+  26 rows, narration 15.0s (hook 4.5s / scroll 5.25s / hold 5.25s)
+Wrote ./monthly_videos\_silent_largecap_2026-07.mp4 (494 frames, 16.5s)
+  -> ./monthly_videos\largecap_2026-07_final.mp4
+Mid Cap script: Number one this month — Bandwidth, up three hundred and fifty-five percent. That's out of the Mid Cap top 25, ranked by trailing return. Ranks two through twenty-four? Free to see. No card needed — link's in the bio.
+  25 rows, narration 14.7s (hook 4.4s / scroll 5.14s / hold 5.14s)
+Wrote ./monthly_videos\_silent_midcap_2026-07.mp4 (485 frames, 16.2s)
+  -> ./monthly_videos\midcap_2026-07_final.mp4
+Small Cap script: Number one this month — BJ's Restaurants, up sixty-eight point four percent. That's out of the Small Cap top 25, ranked by trailing return. Ranks two through twenty-four? Free to see. No card needed — link's in the bio.
+  25 rows, narration 14.5s (hook 4.35s / scroll 5.07s / hold 5.07s)
+Wrote ./monthly_videos\_silent_smallcap_2026-07.mp4 (479 frames, 16.0s)
+  -> ./monthly_videos\smallcap_2026-07_final.mp4
+
+Done. Final videos in ./monthly_videos/

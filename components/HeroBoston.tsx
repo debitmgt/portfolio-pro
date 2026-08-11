@@ -13,9 +13,20 @@
 // smaller type directly under it. The business-summary paragraph that used
 // to live here moved to the white section of the pricing page, before any
 // pricing information (also per that letter).
+//
+// This stays a server component so it can safely import PLANS/CHECKOUT_ENABLED
+// from '@/lib/stripe' (which touches the Stripe secret key server-side). The
+// animated headline/stats/chart live in HeroBostonAnimated, a separate client
+// component with no Stripe import, so that code never ends up in the browser
+// bundle.
+import { cookies } from 'next/headers'
 import { PLANS, CHECKOUT_ENABLED } from '@/lib/stripe'
+import HeroBostonAnimated from './HeroBostonAnimated'
 
-export default function HeroBoston() {
+export default async function HeroBoston() {
+  const cookieStore = await cookies()
+  const variant = cookieStore.get('ab_variant')?.value === 'b' ? 'b' : 'a'
+
   return (
     <section
       style={{
@@ -49,6 +60,38 @@ export default function HeroBoston() {
             'linear-gradient(0deg, rgba(20,22,28,0.92) 0%, rgba(20,22,28,0.55) 18%, rgba(20,22,28,0) 40%)',
         }}
       />
+
+      {/* Small demo video window — mid-left on the hero. Hidden below 900px
+          so it never collides with the centered headline on narrow screens. */}
+      <style>{`
+        .hero-demo-video { display: block; }
+        @media (max-width: 900px) {
+          .hero-demo-video { display: none; }
+        }
+      `}</style>
+      <div
+        className="hero-demo-video"
+        style={{
+          position: 'absolute',
+          left: 32,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 2,
+          width: 260,
+          borderRadius: 10,
+          overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.22)',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+        }}
+      >
+        <video
+          src="/demo.mp4"
+          controls
+          muted
+          playsInline
+          style={{ display: 'block', width: '100%', height: 'auto' }}
+        />
+      </div>
 
       <div
         style={{
@@ -86,52 +129,8 @@ export default function HeroBoston() {
           </a>
         </div>
 
-        {/* Business name (large, centered) + tagline (smaller, directly
-            under) + primary CTA. */}
-        <div style={{ textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-          <h1
-            style={{
-              fontSize: 'clamp(44px, 9vw, 88px)',
-              fontWeight: 800,
-              letterSpacing: '-1.5px',
-              lineHeight: 1.05,
-              color: '#ffffff',
-              marginBottom: 14,
-              textShadow: '0 1px 6px rgba(0,0,0,0.4)',
-            }}
-          >
-            Ownfolio<span style={{ color: 'var(--accent)' }}>.net</span>
-          </h1>
-          <p
-            style={{
-              fontSize: 'clamp(16px, 2.2vw, 22px)',
-              fontWeight: 600,
-              letterSpacing: '-0.2px',
-              color: 'rgba(255,255,255,0.9)',
-              marginBottom: 28,
-              textShadow: '0 1px 3px rgba(0,0,0,0.35)',
-            }}
-          >
-            Take Charge of Your Investments
-          </p>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <a href="/auth/login">
-              <button
-                style={{
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  padding: '13px 24px',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  border: 'none',
-                  borderRadius: 4,
-                }}
-              >
-                Get started free
-              </button>
-            </a>
-          </div>
-        </div>
+        {/* Business name + tagline + stats + CTA — animated, client-side. */}
+        <HeroBostonAnimated variant={variant} />
 
         {/* Pricing bar — overlaid on the bottom of the wallpaper, the hand-off
             into the ticker/news/plan-detail section (page two) below. */}
@@ -164,7 +163,7 @@ export default function HeroBoston() {
               label={PLANS.annual.name}
               sub={`$${PLANS.annual.price}/yr`}
               href={CHECKOUT_ENABLED ? '/auth/login?plan=annual' : '#page-two'}
-              badge="Save 27%"
+              badge="Save 16%"
             />
           </div>
           <a
@@ -211,4 +210,3 @@ function HeroPlanPill({ label, sub, href, highlight, badge }: {
     </a>
   )
 }
-

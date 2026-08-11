@@ -8,7 +8,7 @@
 // anyone to watch a dashboard — same pattern as the other cron routes.
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendFailureAlert } from '@/lib/email/alerts'
+import { sendFailureAlert, sendNewSignupAlert } from '@/lib/email/alerts'
 import { fromAddress, getResendClient } from '@/lib/email/resend'
 import { renderWelcomeEmail, renderDay3Email, renderDay14Email } from '@/lib/email/lifecycle-templates'
 import type { NextRequest } from 'next/server'
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         continue
       }
       results.welcome.sent++
+      await sendNewSignupAlert(row.email)
       await admin.from('profiles').update({ welcome_email_sent_at: new Date().toISOString() }).eq('id', row.id)
     }
 
@@ -122,4 +123,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unexpected error — alert sent.' }, { status: 500 })
   }
 }
-

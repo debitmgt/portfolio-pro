@@ -1,13 +1,13 @@
-// app/api/holdings/route.ts
+﻿// app/api/holdings/route.ts
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import type { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const FREE_LIMIT = 3
+const FREE_LIMIT = 10
 
-// GET — list holdings for current user
+// GET  -  list holdings for current user
 export async function GET() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -23,7 +23,7 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// POST — add a holding
+// POST  -  add a holding
 export async function POST(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { symbol, shares, cost_basis, trail_pct = 8 } = body
+  const { symbol, shares, cost_basis, trail_pct = 20 } = body
 
   if (!symbol || shares == null || cost_basis == null) {
     return NextResponse.json(
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data, { status: 201 })
 }
 
-// PATCH — update a holding
+// PATCH  -  update a holding
 export async function PATCH(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -104,7 +104,7 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json(data)
 }
 
-// DELETE — remove a holding
+// DELETE  -  remove a holding
 export async function DELETE(req: NextRequest) {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()

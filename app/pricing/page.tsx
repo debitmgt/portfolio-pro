@@ -8,15 +8,16 @@ import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 import HeroBoston from '@/components/HeroBoston'
 
 export default async function PricingPage(props: { searchParams?: Promise<{ paused?: string }> }) {
-  const searchParams = await props.searchParams;
+  const searchParams = await props.searchParams
   return (
     <main style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center',
       background: 'var(--bg)',
     }}>
+      <style>{"@media (max-width: 899px){.pg-news{order:2}}"}</style>
       <HeroBoston />
-      {/* Anchor for the hero's pricing-bar links — they should hand off to
+      {/* Anchor for the hero's pricing-bar links &mdash; they should hand off to
           the top of page two (the ticker), not jump past it into the pricing
           card grid further down. */}
       <div id="page-two" style={{ width: '100%' }}>
@@ -31,7 +32,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
         width: '100%', maxWidth: 1240, margin: '0 auto', padding: '48px 24px',
         display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'flex-start', flex: 1,
       }}>
-        <div style={{ flex: '1 1 320px', minWidth: 280 }}>
+        <div className="pg-news" style={{ flex: '1 1 320px', minWidth: 280 }}>
           <div style={{ position: 'sticky', top: 24 }}>
             <MarketNewsFeed />
           </div>
@@ -41,7 +42,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
           flex: '2 1 480px', minWidth: 320,
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
-          {/* Business summary — attorney-mandated copy (Keidi Carrington, Esq.,
+          {/* Business summary &mdash; attorney-mandated copy (Keidi Carrington, Esq.,
               2026-07-09, item 4), placed in the white section before any
               pricing information. Do not paraphrase. */}
           <div style={{ maxWidth: 640, marginBottom: 44, textAlign: 'left' }}>
@@ -52,7 +53,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               Ownfolio (ownfolio.net) lets self-directed, buy-and-hold investors track their portfolios with clear, rules-based data. You enter your own holdings and see pricing, gain/loss, public fundamentals, and public news presented in a standardized, historical format.
             </p>
             <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
-              Each month, subscribers receive a general-circulation ranking newsletter featuring three cap tiers (large, mid, and small), plus an optional editorial spotlight and a public archive of past issues. The same methodology applies to every listed security and every subscriber — the content is impersonal and not tailored to any individual.
+              Each month, subscribers receive a general-circulation ranking newsletter featuring three cap tiers (large, mid, and small), plus an optional editorial spotlight and a public archive of past issues. The same methodology applies to every listed security and every subscriber &mdash; the content is impersonal and not tailored to any individual.
             </p>
             <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7 }}>
               Ownfolio does not execute trades, hold customer funds or securities, accept discretionary authority, or provide personalized investment advice. The product is a business and financial publication for informational and educational purposes only, intended for investors who make their own decisions.
@@ -65,7 +66,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               background: 'var(--surface)', border: '1px solid var(--border)', textAlign: 'center',
             }}>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Pro sign-ups are temporarily paused — check back soon.
+                Pro sign-ups are temporarily paused &mdash; check back soon.
               </p>
             </div>
           )}
@@ -110,7 +111,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
             </div>
           </div>
 
-          {/* Pricing cards — sized to fit three across in this narrower main
+          {/* Pricing cards &mdash; sized to fit three across in this narrower main
               column (next to the sticky news feed) instead of the full page
               width, per Dwight's request to keep them directly under the
               what-is/what-is-not panel. */}
@@ -142,18 +143,18 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
               ctaHref="/auth/login?plan=annual"
               highlight={false}
-              badge="Save 27%"
+              badge="Save 16%"
               disabled={!CHECKOUT_ENABLED}
             />
           </div>
         </div>
       </div>
 
-      {/* ── How Ownfolio Works ──────────────────────────────────────────────
+      {/* â”€â”€ How Ownfolio Works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Added per user-testing feedback that the landing page needed more
           context on what the product actually does before someone hits
           pricing. Placed after the pricing-cards block (so the
-          attorney-mandated business-summary → pricing ordering upstream is
+          attorney-mandated business-summary â†’ pricing ordering upstream is
           untouched) and before the footer. Numbered steps are appropriate
           here since this is a real, ordered sequence a new user follows. */}
       <div style={{ width: '100%', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
@@ -169,7 +170,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               {
                 n: '01',
                 title: 'Add your holdings',
-                body: 'Enter the tickers you own, how many shares, and your cost basis. Nothing connects to a brokerage — you stay in control of your own data.',
+                body: 'Enter the tickers you own, how many shares, and your cost basis. Nothing connects to a brokerage &mdash; you stay in control of your own data.',
               },
               {
                 n: '02',
@@ -184,7 +185,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               {
                 n: '04',
                 title: 'Add Pro when you\u2019re ready',
-                body: 'Full fundamentals data with daily percentile scoring, industry breakdowns, and the monthly ranking newsletter.',
+                body: 'Full fundamentals data with daily percentile scoring, per-holding and portfolio beta, industry breakdowns, and the monthly ranking newsletter.',
               },
             ].map(step => (
               <div key={step.n}>
@@ -199,7 +200,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
         </div>
       </div>
 
-      {/* ── Free vs. Pro, spelled out ───────────────────────────────────────
+      {/* â”€â”€ Free vs. Pro, spelled out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Directly answers the "everything is locked" feedback by showing,
           on the landing page itself, that most of the dashboard is usable
           for free. Mirrors the actual gating in DashboardClient.tsx. */}
@@ -211,9 +212,9 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
           Most of the dashboard is free. Pro adds a smaller set of deeper, proprietary detail.
         </p>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <div style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '24px 26px' }}>
+          <div className="pg-news" style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: '24px 26px' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-              Free — no card required
+              Free &mdash; no card required
             </div>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
@@ -232,15 +233,16 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               ))}
             </ul>
           </div>
-          <div style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--accent)', borderRadius: 8, padding: '24px 26px', boxShadow: '0 8px 28px rgba(255,106,0,.12)' }}>
+          <div className="pg-news" style={{ flex: '1 1 320px', maxWidth: 400, background: '#fff', border: '1px solid var(--accent)', borderRadius: 8, padding: '24px 26px', boxShadow: '0 8px 28px rgba(255,106,0,.12)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-              Pro — {`$${PLANS.monthly.price}/mo`}
+              Pro &mdash; {`$${PLANS.monthly.price}/mo`}
             </div>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
                 'Unlimited holdings',
                 'Full Fundamentals (Summary, Dividends, Growth, Valuation, Profitability, Price Performance)',
                 'Daily percentile scoring & earnings history',
+                'Risk (per-holding and portfolio beta)',
                 'Industry Concentration breakdown',
                 'Allocation Notes',
                 'Watchlist & monthly ranking newsletter',
@@ -255,8 +257,8 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
         </div>
       </div>
 
-      {/* ── FAQ ─────────────────────────────────────────────────────────────
-          Short, practical questions — no new legal claims beyond what's
+      {/* â”€â”€ FAQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          Short, practical questions &mdash; no new legal claims beyond what's
           already established in the business summary and disclaimer. */}
       <div style={{ width: '100%', background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
         <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', padding: '56px 24px' }}>
@@ -300,7 +302,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
         </p>
 
         <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 12, opacity: 0.6 }}>
-          Powered by Stripe · Cancel anytime · No hidden fees
+          Powered by Stripe &middot; Cancel anytime &middot; No hidden fees
         </p>
 
         <div id="newsletter" style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid var(--border)', width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -372,4 +374,3 @@ function PricingCard({ name, price, period, features, cta, ctaHref, highlight, b
     </div>
   )
 }
-

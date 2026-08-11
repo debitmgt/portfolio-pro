@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         symbol,
         name: profile.name ?? null,
+        country: profile.country ?? null,
         industry: profile.finnhubIndustry ?? null,
         marketCap: profile.marketCapitalization ?? null,   // in millions USD
         peRatio: metric.peBasicExclExtraTTM ?? metric.peExclExtraTTM ?? null,
@@ -191,6 +192,94 @@ export async function GET(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 502 })
     }
+  }
+
+  // ─── Dividend payment history (actual ex-dates and pay-dates) ────────────
+  // Separate from the annual dividend figures already returned above by
+  // 'fundamentals' (those come from /stock/metric, which is confirmed
+  // free-tier). This uses /stock/dividend, which some Finnhub accounts may
+  // have gated behind a paid plan — if so, Finnhub returns 403 and we report
+  // that back as `premiumRequired: true` instead of erroring, so the
+  // Dividends tab can fall back to showing just the annual estimate.
+  if (type === 'dividends') {
+    const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+    if (!symbol) return NextResponse.json({ error: 'symbol required' }, { status: 400 })
+
+    const to = new Date()
+    const from = new Date(to.getTime() - 3 * 365 * 24 * 60 * 60 * 1000)   // last ~3 years
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/stock/dividend?symbol=${encodeURIComponent(symbol)}&from=${fmt(from)}&to=${fmt(to)}&token=${key}`,
+        { next: { revalidate: 86400 } }   // payment dates don't change — cache a day
+      )
+
+      if (res.status === 403) {
+        return NextResponse.json({ symbol, items: [], premiumRequired: true })
+      }
+      if (!res.ok) {
+        return NextResponse.json({ symbol, items: [], premiumRequired: false })
+      }
+
+      const raw: Array<{
+        symbol: string
+        date?: string
+        exDate?: string
+        amount: number | null
+        adjustedAmount?: number | null
+        payDate?: string | null
+        recordDate?: string | null
+        declarationDate?: string | null
+        currency?: string
+      }> = await res.json()
+
+      const items = (Array.isArray(raw) ? raw : [])
+        .filter(d => d.amount != null && (d.date || d.exDate))
+        .map(d => ({
+          exDate: d.date ?? d.exDate ?? null,
+          payDate: d.payDate ?? null,
+          amount: d.amount,
+        }))
+        .sort((a, b) => new Date(b.exDate ?? 0).getTime() - new Date(a.exDate ?? 0).getTime())
+
+      return NextResponse.json({ symbol, items, premiumRequired: false })
+    } catch {
+      return NextResponse.json({ symbol, items: [], premiumRequired: false })
+    }
+  }
+
+  // --- 52-week highs (drawdown baseline) ------------------------------------
+  // Used by the Drawdown Alerts tab to measure how far a holding has fallen
+  // from its highest price over the past year. Comes from /stock/metric, the
+  // same free-tier call already used by 'fundamentals' above. Finnhub can't
+  // batch this endpoint, so we loop the same way the quotes branch does.
+  // Cached 1hr: a 52-week high moves at most once a day.
+  if (type === 'highs') {
+    const highSymbols = searchParams.get('symbols')?.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) ?? []
+    if (!highSymbols.length) return NextResponse.json({})
+
+    const limitedHighs = [...new Set(highSymbols)].slice(0, 20)
+    const highResults: Record<string, number> = {}
+
+    await Promise.all(
+      limitedHighs.map(async (sym) => {
+        try {
+          const res = await fetch(
+            `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(sym)}&metric=all&token=${key}`,
+            { next: { revalidate: 3600 } }
+          )
+          if (!res.ok) return
+          const data = await res.json()
+          const high = data?.metric?.['52WeekHigh']
+          if (typeof high === 'number' && high > 0) highResults[sym] = high
+        } catch {
+          // Skip failed symbols silently - UI falls back to no-data state
+        }
+      })
+    )
+
+    return NextResponse.json(highResults)
   }
 
   // ─── Live quotes ───────────────────────────────────────────────────────────

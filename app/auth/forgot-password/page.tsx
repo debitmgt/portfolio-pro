@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
     setError('')
     if (!email) { setError('Enter your email address'); return }
     if (TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Please complete the verification check above.')
+      setError('Please complete the verification check below.')
       return
     }
     setLoading(true)

@@ -38,6 +38,27 @@ export async function GET(req: NextRequest) {
 
   try {
 
+  // ── Already-sent guard ─────────────────────────────────────────────────
+  // The newsletter is chained off refresh-monthly-rankings (see that route),
+  // so it may be invoked more than once in a month if rankings re-run. A row
+  // in newsletter_runs for this period means we've already sent — exit early
+  // so nobody gets a duplicate. Pass ?force=1 to bypass (manual re-send).
+  const force = new URL(req.url).searchParams.get('force') === '1'
+  if (!force) {
+    const { data: priorRun } = await admin
+      .from('newsletter_runs')
+      .select('period_label, sent_at')
+      .eq('period_label', periodLabel)
+      .maybeSingle()
+    if (priorRun) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        note: `Newsletter for ${periodLabel} already sent at ${priorRun.sent_at}. Pass ?force=1 to re-send.`,
+      })
+    }
+  }
+
   const { data: allRankings, error: rankingsError } = await admin
     .from('monthly_rankings')
     .select('*')
@@ -152,6 +173,26 @@ export async function GET(req: NextRequest) {
         `pro: ${proResult.failed}/${proBatch.length} failed.\n\n` +
         [...freeResult.errors, ...proResult.errors].join('\n')
     )
+  }
+
+  // ── Record the send ────────────────────────────────────────────────────
+  // Write the marker only if at least one email actually went out, so a run
+  // that failed entirely can still be retried (it won't be treated as sent).
+  const freeSucceeded = freeBatch.length - (freeResult.failed ?? 0)
+  const proSucceeded = proBatch.length - (proResult.failed ?? 0)
+  const totalSucceeded = freeSucceeded + proSucceeded
+  if (totalSucceeded > 0) {
+    await admin
+      .from('newsletter_runs')
+      .upsert(
+        {
+          period_label: periodLabel,
+          sent_at: new Date().toISOString(),
+          free_sent: freeSucceeded,
+          pro_sent: proSucceeded,
+        },
+        { onConflict: 'period_label' }
+      )
   }
 
   return NextResponse.json({

@@ -1,0 +1,129 @@
+    table/column names still match your schema on the first real run."""
+    url = (
+        f"{supabase_url}/rest/v1/monthly_rankings"
+        f"?cap_tier=eq.{cap_tier}&period_label=eq.{period_label}"
+        f"&select=rank,symbol,company_name,trailing_return_1y&order=rank.asc&rank=lte.25"
+    )
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("apikey", service_key)
+    req.add_header("Authorization", f"Bearer {service_key}")
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        raw = json.loads(resp.read())
+
+    rows = []
+    for r in raw:
+        if r.get("trailing_return_1y") is None:
+            continue
+        rows.append({
+            "rank": r["rank"],
+            "ticker": r["symbol"],
+            "name": r.get("company_name") or r["symbol"],
+            "ret": float(r["trailing_return_1y"]),
+        })
+    return rows
+
+
+# ─── Video building for one part ────────────────────────────────────────────
+def build_part_video(rows, tier_label, month_label, visible_ranks, part_num, total_parts,
+                      narration_audio_path, narration_duration, out_path, fps=30):
+    tmpdir = "_frames_tmp"
+    if os.path.exists(tmpdir):
+        shutil.rmtree(tmpdir)
+    os.makedirs(tmpdir)
+
+    # Same 30/35/35 hook/scroll/hold split observed in the original log
+    # output, sized to the actual narration length so video and voice
+    # always match up regardless of how long a given line of narration is.
+    hook_seconds = narration_duration * 0.30
+    scroll_seconds = narration_duration * 0.35
+    hold_seconds = narration_duration * 0.35
+
+    table = render_table_variant(rows, tier_label, month_label, visible_ranks=visible_ranks)
+    total_h = table.height
+    scrollable = max(total_h - H, 0)
+    frame_idx = 0
+
+    top_view = table.crop((0, 0, W, H))
+    for _ in range(int(fps * hook_seconds)):
+        top_view.save(f"{tmpdir}/f{frame_idx:05d}.jpg", quality=90)
+        frame_idx += 1
+
+    scroll_frames = int(fps * scroll_seconds)
+    for i in range(scroll_frames):
+        offset = int(scrollable * (i / max(scroll_frames - 1, 1)))
+        table.crop((0, offset, W, offset + H)).save(f"{tmpdir}/f{frame_idx:05d}.jpg", quality=90)
+        frame_idx += 1
+
+    bottom_view = table.crop((0, total_h - H, W, total_h))
+    ranks_text = " & ".join(f"#{r}" for r in sorted(visible_ranks))
+    cta_view = add_cta_frame(bottom_view, [
+        (f"Part {part_num} of {total_parts} - Rank {ranks_text}", F_CTA, WHITE),
+        ("See the full list free - link in bio", F_REG, (230, 230, 230)),
+    ])
+    for _ in range(int(fps * hold_seconds)):
+        cta_view.save(f"{tmpdir}/f{frame_idx:05d}.jpg", quality=90)
+        frame_idx += 1
+
+    silent_path = out_path.replace("_final.mp4", "_silent.mp4")
+    subprocess.run([
+        "ffmpeg", "-y", "-framerate", str(fps), "-i", f"{tmpdir}/f%05d.jpg",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", f"scale={W}:{H}",
+        silent_path,
+    ], check=True, capture_output=True)
+    shutil.rmtree(tmpdir)
+
+    subprocess.run([
+        "ffmpeg", "-y", "-i", silent_path, "-i", narration_audio_path,
+        "-c:v", "copy", "-c:a", "aac", "-shortest", out_path,
+    ], check=True, capture_output=True)
+
+    print(f"  -> {out_path}")
+
+
+def run(voice_id):
+    env = load_env_local()
+    supabase_url = env.get("NEXT_PUBLIC_SUPABASE_URL")
+    service_key = env.get("SUPABASE_SERVICE_ROLE_KEY")
+    elevenlabs_key = env.get("ELEVENLABS_API_KEY")
+    missing = [name for name, val in [
+        ("NEXT_PUBLIC_SUPABASE_URL", supabase_url),
+        ("SUPABASE_SERVICE_ROLE_KEY", service_key),
+        ("ELEVENLABS_API_KEY", elevenlabs_key),
+    ] if not val]
+    if missing:
+        print(f"Missing required values in .env.local: {', '.join(missing)}")
+        sys.exit(1)
+
+    period_label = datetime.date.today().strftime("%Y-%m")
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    for cap_tier, tier_label in TIERS:
+        print(f"\n=== {tier_label} ({period_label}) ===")
+        rows = fetch_tier_rows(supabase_url, service_key, cap_tier, period_label)
+        if not rows:
+            print(f"  No rows found for {cap_tier}/{period_label} — skipping.")
+            continue
+
+        episodes = build_episode_list(rows)
+        total_parts = len(episodes)
+
+        for i, pair in enumerate(episodes, start=1):
+            visible_ranks = set(pair)
+            text = narration_for_part(tier_label, period_label, rows, i, total_parts, visible_ranks)
+            print(f"{tier_label} part {i}: {text}")
+
+            audio_path = os.path.join(OUT_DIR, f"_voice_{cap_tier}_{period_label}_part{i:02d}.mp3")
+            synthesize_voice(text, voice_id, elevenlabs_key, audio_path)
+            duration = get_audio_duration(audio_path)
+
+            out_path = os.path.join(OUT_DIR, f"{cap_tier}_{period_label}_part{i:02d}_of_{total_parts}_final.mp4")
+            build_part_video(rows, tier_label, period_label, visible_ranks, i, total_parts,
+                              audio_path, duration, out_path)
+
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("--voice-id", required=True)
+    args = p.parse_args()
+    run(args.voice_id)

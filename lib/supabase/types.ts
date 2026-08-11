@@ -1,4 +1,4 @@
-// lib/supabase/types.ts
+﻿// lib/supabase/types.ts
 export type Plan = 'free' | 'pro'
 
 export interface Profile {
@@ -8,7 +8,7 @@ export interface Profile {
   stripe_customer_id: string | null
   created_at: string
   // Pro users get the monthly watchlist digest by default (opt-out). Free
-  // Top 25 subscribers are separate — see NewsletterSubscriber (opt-in).
+  // Top 25 subscribers are separate  -  see NewsletterSubscriber (opt-in).
   newsletter_opt_out: boolean
   newsletter_unsubscribe_token: string
   welcome_email_sent_at: string | null
@@ -40,7 +40,7 @@ export interface Holding {
 
 // Generic, per-ticker content computed identically for every user on a fixed
 // schedule from public market data only (see scripts/cron/refresh-ticker-metrics).
-// Never derived from any individual user's cost basis, shares, or portfolio —
+// Never derived from any individual user's cost basis, shares, or portfolio  - 
 // this is the "compute once, filter per user" layer described in the publisher's-
 // exclusion architecture review.
 export interface TickerMetrics {
@@ -66,7 +66,7 @@ export type CapTier = 'large' | 'mid' | 'small'
 
 // Broad-market Top 25 ranking (trailing 1y total return), computed identically
 // for every subscriber on a monthly schedule, ranked separately within each
-// cap_tier (large/mid/small — classified live from market cap, not a static
+// cap_tier (large/mid/small  -  classified live from market cap, not a static
 // per-symbol label, see app/api/cron/refresh-monthly-rankings). Feeds the
 // free newsletter (unfiltered, one Top 25 per tier) and the Pro digest
 // (filtered by WatchlistItem symbols). Never derived from any user's holdings.
@@ -90,7 +90,7 @@ export interface MonthlyRanking {
 
 // Optional, hand-written monthly commentary spotlight (e.g. a "story of the
 // month" highlight on one public company). One row per period_label. This is
-// genuine editorial content, not computed/personalized data — no link to any
+// genuine editorial content, not computed/personalized data  -  no link to any
 // user's holdings, cost basis, or watchlist. Service-role only; there's no
 // admin UI to write these yet, so a row is inserted directly (Supabase table
 // editor or a one-off SQL statement) each month it's wanted. If no row exists
@@ -106,13 +106,13 @@ export interface NewsletterEditorial {
 
 // Combined (non-tiered) Top 50, ranked by a recency-weighted blend of
 // trailing 13/26/52-week returns (0.5/0.3/0.2), computed identically for
-// every subscriber alongside the existing tiered Top 25 lists — same
+// every subscriber alongside the existing tiered Top 25 lists  -  same
 // "compute once, filter never" pattern as MonthlyRanking. Deliberately not
 // literal Barchart "Weighted Alpha": that requires daily price history via
 // Finnhub's /stock/candle, which is unavailable on the current free-tier
 // key. This uses only the trailing-return fields Finnhub already returns
 // for free (see app/api/cron/refresh-monthly-rankings), weighting more
-// recent quarters more heavily — same directional idea, no added cost.
+// recent quarters more heavily  -  same directional idea, no added cost.
 export interface WeightedReturnRanking {
   id: string
   period_label: string
@@ -142,8 +142,15 @@ export interface NewsletterSubscriber {
   created_at: string
 }
 
+export interface NewsletterRun {
+  period_label: string
+  sent_at: string
+  free_sent: number
+  pro_sent: number
+}
+
 // Pro-only, user-entered tickers (never shares/cost basis) that filter
-// MonthlyRanking into a personalized digest — selection-based personalization,
+// MonthlyRanking into a personalized digest  -  selection-based personalization,
 // not computation-based. Deliberately separate from Holding.
 export interface WatchlistItem {
   id: string
@@ -154,7 +161,7 @@ export interface WatchlistItem {
 
 // Messages submitted via the /support contact form (see app/api/support/route.ts).
 // urgent is set by simple keyword matching on submit so billing/account-access
-// messages can be triaged first. No public read/write policy — only the
+// messages can be triaged first. No public read/write policy  -  only the
 // service-role client (the API route, or Dwight via the Supabase dashboard)
 // touches this table.
 export interface SupportMessage {
@@ -168,7 +175,7 @@ export interface SupportMessage {
 }
 
 // A Stripe dispute/chargeback against one of our charges (see
-// app/api/stripe/webhook/route.ts). Logged so a dispute is never silent —
+// app/api/stripe/webhook/route.ts). Logged so a dispute is never silent  - 
 // created/closed/updated/funds_withdrawn/funds_reinstated events all upsert
 // or update this row. Service-role only, no client access.
 export interface Dispute {
@@ -181,6 +188,27 @@ export interface Dispute {
   status: string
   created_at: string
   updated_at: string
+}
+
+export interface UserRiskMetric {
+  id: string
+  user_id: string
+  symbol: string
+  cap_tier: string | null
+  benchmark_symbol: string | null
+  beta: number | null
+  alpha: number | null
+  trailing_days: number | null
+  computed_at: string
+  methodology_version: string
+}
+
+export interface UserCorrelation {
+  user_id: string
+  correlation_matrix: (number | null)[][]
+  symbols: string[]
+  computed_at: string
+  methodology_version: string
 }
 
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
@@ -228,6 +256,12 @@ export type Database = {
         Update: Flatten<Partial<NewsletterSubscriber>>
         Relationships: []
       }
+      newsletter_runs: {
+        Row: Flatten<NewsletterRun>
+        Insert: Flatten<Partial<NewsletterRun> & { period_label: string }>
+        Update: Flatten<Partial<NewsletterRun>>
+        Relationships: []
+      }
       watchlist_items: {
         Row: Flatten<WatchlistItem>
         Insert: Flatten<Partial<WatchlistItem> & { user_id: string; symbol: string }>
@@ -256,6 +290,18 @@ export type Database = {
         Row: Flatten<Dispute>
         Insert: Flatten<Partial<Dispute> & { id: string; charge_id: string; amount: number; status: string }>
         Update: Flatten<Partial<Dispute>>
+        Relationships: []
+      }
+      user_risk_metrics: {
+        Row: Flatten<UserRiskMetric>
+        Insert: Flatten<Partial<UserRiskMetric> & { user_id: string; symbol: string }>
+        Update: Flatten<Partial<UserRiskMetric>>
+        Relationships: []
+      }
+      user_correlations: {
+        Row: Flatten<UserCorrelation>
+        Insert: Flatten<Partial<UserCorrelation> & { user_id: string; correlation_matrix: (number | null)[][]; symbols: string[] }>
+        Update: Flatten<Partial<UserCorrelation>>
         Relationships: []
       }
     }

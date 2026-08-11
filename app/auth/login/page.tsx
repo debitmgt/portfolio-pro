@@ -49,7 +49,13 @@ function LoginForm() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  // Opens directly in signup mode when the URL says so, e.g. /auth/login?mode=signup.
+  // The homepage CTAs use that link, so cold traffic lands on "Create your account"
+  // instead of a sign-in form they have no account for. Anything other than
+  // "signup" falls through to the previous default.
+  const [mode, setMode] = useState<'login' | 'signup'>(
+    params.get('mode') === 'signup' ? 'signup' : 'login'
+  )
   const [error, setError] = useState(urlError ?? '')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -86,7 +92,7 @@ function LoginForm() {
       return
     }
     if (TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Please complete the verification check above.')
+      setError('Please complete the verification check below.')
       return
     }
     setLoading(true)

@@ -55,6 +55,19 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(dashUrl)
   }
 
+  // A/B test: assign a persistent variant cookie ('a' or 'b') for the
+  // marketing hero/pricing test, once per visitor, if not already set. This
+  // lives here (rather than a separate middleware.ts) because Next.js 16
+  // only allows one middleware/proxy file per project.
+  if (!req.cookies.get('ab_variant')) {
+    const variant = Math.random() < 0.5 ? 'a' : 'b'
+    res.cookies.set('ab_variant', variant, {
+      maxAge: 60 * 60 * 24 * 90,
+      path: '/',
+      sameSite: 'lax',
+    })
+  }
+
   return res
 }
 
