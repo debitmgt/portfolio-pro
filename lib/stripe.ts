@@ -1,4 +1,4 @@
-﻿// lib/stripe.ts
+// lib/stripe.ts
 import Stripe from 'stripe'
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -37,16 +37,10 @@ export const PLANS = {
     priceId: process.env.STRIPE_MONTHLY_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [
+      'Everything on the free plan',
       'Unlimited holdings',
-      'Live prices (30s refresh)',
-      'All Pro tabs',
-      'My Returns',
-      'Position Status',
-      'Allocation View',
-      'Concentration',
-      'Charts',
-      'Fundamentals',
-      'Drawdown Alerts',
+      'Fundamentals (daily percentile scoring)',
+      'Risk (per-holding and portfolio beta)',
       'Watchlist',
       'Personalized monthly digest email',
     ],
