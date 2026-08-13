@@ -184,8 +184,20 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 
   // â”€â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function signOut() {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      // Even if the Supabase call fails/rejects, still force the user out
+      // below rather than silently leaving them on a "signed in" dashboard.
+      console.error('Sign out request failed:', err)
+    } finally {
+      // Full page navigation (not router.push) on purpose: router.push does
+      // a client-side transition that can be served from Next.js's router
+      // cache, which was observed showing a stale signed-in /dashboard
+      // after "signing out." A full navigation forces proxy.ts's getUser()
+      // check to re-run fresh against the browser's current cookie jar.
+      window.location.href = '/auth/login'
+    }
   }
 
   // â”€â”€â”€ Tab click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
