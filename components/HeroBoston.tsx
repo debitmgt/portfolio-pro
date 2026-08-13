@@ -22,6 +22,7 @@
 import { cookies } from 'next/headers'
 import { PLANS, CHECKOUT_ENABLED } from '@/lib/stripe'
 import HeroBostonAnimated from './HeroBostonAnimated'
+import RankingsVideoHero from './RankingsVideoHero'
 
 export default async function HeroBoston() {
   const cookieStore = await cookies()
@@ -104,6 +105,15 @@ export default async function HeroBoston() {
 
         {/* Business name + tagline + stats + CTA — animated, client-side. */}
         <HeroBostonAnimated variant={variant} />
+
+        {/* Monthly ranking video carousel — moved here (Aug 13, 2026) to sit
+            directly under the "Take control — start free" CTA, filling the
+            space left blank on this screen since the old /demo.mp4 window
+            was removed. Renders nothing if no videos are uploaded yet, so
+            it's safe here even before the monthly upload step runs. */}
+        <div style={{ marginTop: 32 }}>
+          <RankingsVideoHero />
+        </div>
 
         {/* Pricing bar — overlaid on the bottom of the wallpaper, the hand-off
             into the ticker/news/plan-detail section (page two) below. */}
