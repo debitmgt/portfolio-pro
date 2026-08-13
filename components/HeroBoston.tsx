@@ -61,37 +61,10 @@ export default async function HeroBoston() {
         }}
       />
 
-      {/* Small demo video window — mid-left on the hero. Hidden below 900px
-          so it never collides with the centered headline on narrow screens. */}
-      <style>{`
-        .hero-demo-video { display: block; }
-        @media (max-width: 900px) {
-          .hero-demo-video { display: none; }
-        }
-      `}</style>
-      <div
-        className="hero-demo-video"
-        style={{
-          position: 'absolute',
-          left: 32,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 2,
-          width: 260,
-          borderRadius: 10,
-          overflow: 'hidden',
-          border: '1px solid rgba(255,255,255,0.22)',
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-        }}
-      >
-        <video
-          src="/demo.mp4"
-          controls
-          muted
-          playsInline
-          style={{ display: 'block', width: '100%', height: 'auto' }}
-        />
-      </div>
+      {/* Small demo video window removed (Aug 13, 2026) — the monthly
+          rankings video carousel (RankingsVideoHero) now covers this on
+          the page, right below the hero, so this redundant /demo.mp4
+          window was taken out to avoid showing two video inserts. */}
 
       <div
         style={{
