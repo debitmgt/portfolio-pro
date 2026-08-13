@@ -6,6 +6,7 @@ import MarketTicker from '@/components/MarketTicker'
 import MarketNewsFeed from '@/components/MarketNewsFeed'
 import NewsletterSignupForm from '@/components/NewsletterSignupForm'
 import HeroBoston from '@/components/HeroBoston'
+import RankingsVideoHero from '@/components/RankingsVideoHero'
 
 export default async function PricingPage(props: { searchParams?: Promise<{ paused?: string }> }) {
   const searchParams = await props.searchParams
@@ -17,6 +18,11 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
     }}>
       <style>{"@media (max-width: 899px){.pg-news{order:2}}"}</style>
       <HeroBoston />
+      {/* This month's ranking video carousel — sits between the main hero and
+          the ticker/news hand-off. Renders nothing (returns null) if no
+          videos have been uploaded to Supabase storage for the current
+          month yet, so it's safe to ship even before the upload step runs. */}
+      <RankingsVideoHero />
       {/* Anchor for the hero's pricing-bar links &mdash; they should hand off to
           the top of page two (the ticker), not jump past it into the pricing
           card grid further down. */}

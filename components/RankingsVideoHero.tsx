@@ -47,7 +47,8 @@ export default function RankingsVideoHero() {
     return () => clearInterval(interval)
   }, [videos.length])
 
-  if (loading || videos.length === 0) {
+  // Brief real loading state while the fetch is in flight.
+  if (loading) {
     return (
       <div style={{
         width: '100%',
@@ -59,6 +60,14 @@ export default function RankingsVideoHero() {
         <p style={{ color: 'var(--muted)', fontSize: 14 }}>Loading latest rankings...</p>
       </div>
     )
+  }
+
+  // No videos uploaded for the current month yet — render nothing rather
+  // than getting stuck showing "Loading..." forever. Once at least one
+  // month's videos are uploaded to the Supabase `monthly-videos` bucket,
+  // this section appears automatically.
+  if (videos.length === 0) {
+    return null
   }
 
   const currentVideo = videos[currentIndex]

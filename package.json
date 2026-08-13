@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test:webhook:create": "stripe fixtures scripts/stripe-fixtures/subscription-created.json",
     "test:webhook:cancel": "stripe fixtures scripts/stripe-fixtures/subscription-canceled.json",
-    "test:webhook:verify": "node --env-file=.env.local scripts/verify-webhook-sync.mjs"
+    "test:webhook:verify": "node --env-file=.env.local scripts/verify-webhook-sync.mjs",
+    "upload:videos": "node --env-file=.env.local scripts/upload-monthly-videos.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
