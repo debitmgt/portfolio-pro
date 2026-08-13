@@ -80,8 +80,26 @@ export default function RankingsVideoHero() {
       background: '#000',
       overflow: 'hidden',
     }}>
+      {/* Mobile tuning (Aug 13, 2026): the box below keeps its 16:9 shape via
+          padding-bottom, which on a narrow phone works out to only ~190px
+          tall — too short for the title/description/button/dots to fit
+          comfortably. minHeight gives it a floor on small screens (no effect
+          on desktop, where 16:9-of-width is already taller than this). The
+          rvh-overlay class also shrinks padding/gaps/font sizes below 480px
+          so the text has room to breathe instead of feeling crammed. */}
+      <style>{`
+        .rvh-video-box { min-height: 0; }
+        @media (max-width: 480px) {
+          .rvh-video-box { min-height: 320px; }
+          .rvh-overlay { padding: 14px !important; }
+          .rvh-tier-label { margin-bottom: 4px !important; }
+          .rvh-tier-name { font-size: 17px !important; }
+          .rvh-tier-desc { font-size: 12.5px !important; margin-bottom: 12px !important; }
+          .rvh-cta-button { padding: 10px 22px !important; font-size: 13px !important; }
+        }
+      `}</style>
       {/* Video container with aspect ratio */}
-      <div style={{
+      <div className="rvh-video-box" style={{
         position: 'relative',
         width: '100%',
         paddingBottom: '56.25%', // 16:9 ratio
@@ -106,7 +124,7 @@ export default function RankingsVideoHero() {
         </video>
 
         {/* Overlay gradient and text */}
-        <div style={{
+        <div className="rvh-overlay" style={{
           position: 'absolute',
           top: 0,
           left: 0,
@@ -125,7 +143,7 @@ export default function RankingsVideoHero() {
             transition: 'opacity 0.6s ease-in-out',
             textAlign: 'center',
           }}>
-            <div style={{
+            <div className="rvh-tier-label" style={{
               fontSize: 12,
               fontWeight: 700,
               color: 'var(--green)',
@@ -141,7 +159,7 @@ export default function RankingsVideoHero() {
           <div style={{
             textAlign: 'center',
           }}>
-            <div style={{
+            <div className="rvh-tier-name" style={{
               fontSize: 20,
               fontWeight: 700,
               color: '#fff',
@@ -150,7 +168,7 @@ export default function RankingsVideoHero() {
             }}>
               {tierLabels[tier]}
             </div>
-            <div style={{
+            <div className="rvh-tier-desc" style={{
               fontSize: 14,
               color: 'rgba(255,255,255,0.8)',
               marginBottom: 20,
@@ -159,7 +177,7 @@ export default function RankingsVideoHero() {
             </div>
 
             {/* CTA Button */}
-            <Link href="/auth/login?plan=monthly" style={{
+            <Link href="/auth/login?plan=monthly" className="rvh-cta-button" style={{
               display: 'inline-block',
               background: 'var(--accent)',
               color: '#fff',

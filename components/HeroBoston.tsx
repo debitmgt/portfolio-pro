@@ -110,8 +110,10 @@ export default async function HeroBoston() {
             directly under the "Take control — start free" CTA, filling the
             space left blank on this screen since the old /demo.mp4 window
             was removed. Renders nothing if no videos are uploaded yet, so
-            it's safe here even before the monthly upload step runs. */}
-        <div style={{ marginTop: 32 }}>
+            it's safe here even before the monthly upload step runs. No
+            marginTop here (removed same day) — sits flush against the CTA
+            button above it rather than leaving a visible gap. */}
+        <div>
           <RankingsVideoHero />
         </div>
 
