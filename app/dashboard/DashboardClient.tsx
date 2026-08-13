@@ -1,30 +1,15 @@
-﻿'use client'
+'use client'
 // app/dashboard/DashboardClient.tsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Holding, Plan, TickerMetrics } from '@/lib/supabase/types'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
-import { HoldingsCardGrid } from '@/components/HoldingsCardGrid'
-import { ReturnsCardGrid } from '@/components/ReturnsCardGrid'
-import { PositionStatusCardGrid } from '@/components/PositionStatusCardGrid'
-import { AllocationCardGrid } from '@/components/AllocationCardGrid'
-import { ConcentrationCardGrid } from '@/components/ConcentrationCardGrid'
-import { DrawdownCardGrid } from '@/components/DrawdownCardGrid'
-import { RiskCardGrid } from '@/components/RiskCardGrid'
-import { AllocationPie, GainLossBar } from '@/components/PortfolioCharts'
 
-const FREE_LIMIT = 10
+const FREE_LIMIT = 3
 
-const ALL_TABS = ['Tracker', 'My Returns', 'Fundamentals', 'Charts', 'Allocation View', 'News', 'Position Status', 'Concentration', 'Drawdown Alerts', 'Risk', 'Watchlist']
-
-// Only these two remain fully gated behind Pro (blurred-preview treatment).
-// Everything else opened up to Free per the reviewer feedback  -  Fundamentals
-// stays locked because the detail sub-tabs are core paid value, Watchlist
-// stays locked because it's a separate account feature (monthly email
-// symbol list), not a "portfolio data" tier.
-const PRO_ONLY_TABS = ['Fundamentals', 'Watchlist', 'Risk']
+const ALL_TABS = ['Tracker', 'My Returns', 'Fundamentals', 'Dividends', 'Benchmark', 'News', 'Allocation View', 'Concentration', 'Charts', 'Watchlist']
 
 interface Props {
   userId: string
@@ -35,6 +20,33 @@ interface Props {
 
 interface PriceMap { [symbol: string]: number }
 
+// Counts from its previous value up (or down) to a new value whenever it
+// changes — used for the Tracker summary cards so the dashboard feels alive
+// on load and when prices refresh, not just a chart-page effect.
+function AnimatedNumber({ value, format }: { value: number; format: (n: number) => string }) {
+  const [display, setDisplay] = useState(value)
+  const prevValue = useRef(value)
+
+  useEffect(() => {
+    const from = prevValue.current
+    const to = value
+    if (from === to) return
+    prevValue.current = to
+    const durationMs = 700
+    const startTime = performance.now()
+
+    function tick(now: number) {
+      const progress = Math.min((now - startTime) / durationMs, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(from + (to - from) * eased)
+      if (progress < 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, [value])
+
+  return <>{format(display)}</>
+}
+
 export default function DashboardClient({ userId, email, plan, initialHoldings }: Props) {
   const router = useRouter()
   const params = useSearchParams()
@@ -42,8 +54,14 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
 
   const [holdings, setHoldings] = useState<Holding[]>(initialHoldings)
   const [prices, setPrices] = useState<PriceMap>({})
-  const [highs, setHighs] = useState<PriceMap>({})
   const [activeTab, setActiveTab] = useState('Tracker')
+  const [tabVisible, setTabVisible] = useState(true)
+
+  useEffect(() => {
+    setTabVisible(false)
+    const id = requestAnimationFrame(() => setTabVisible(true))
+    return () => cancelAnimationFrame(id)
+  }, [activeTab])
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [priceLoading, setPriceLoading] = useState(false)
@@ -52,7 +70,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   const [newSymbol, setNewSymbol] = useState('')
   const [newShares, setNewShares] = useState('')
   const [newCost, setNewCost] = useState('')
-  const [newTrail, setNewTrail] = useState('20')
+  const [newTrail, setNewTrail] = useState('8')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -71,7 +89,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     }
   }, [params, router])
 
-  // â”€â”€â”€ Fetch live prices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Fetch live prices ────────────────────────────────────────────────────
   const fetchPrices = useCallback(async (syms: string[]) => {
     if (!syms.length) return
     setPriceLoading(true)
@@ -86,30 +104,16 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     }
   }, [])
 
-  // 52-week highs power the Drawdown Alerts tab. These move at most once a
-  // day, so unlike quotes they are fetched once per load, not on a timer.
-  const fetchHighs = useCallback(async (syms: string[]) => {
-    if (!syms.length) return
-    const symbols = [...new Set(syms)].join(',')
-    try {
-      const res = await fetch(`/api/finnhub?type=highs&symbols=${encodeURIComponent(symbols)}`)
-      if (!res.ok) return
-      const data: PriceMap = await res.json()
-      setHighs(prev => ({ ...prev, ...data }))
-    } catch { /* silent */ }
-  }, [])
-
   useEffect(() => {
     const symbols = holdings.map(h => h.symbol)
     if (symbols.length) fetchPrices(symbols)
-    if (symbols.length) fetchHighs(symbols)
     const interval = setInterval(() => {
       if (symbols.length) fetchPrices(symbols)
     }, 30_000)
     return () => clearInterval(interval)
-  }, [holdings, fetchPrices, fetchHighs])
+  }, [holdings, fetchPrices])
 
-  // â”€â”€â”€ Add holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Add holding ──────────────────────────────────────────────────────────
   async function addHolding() {
     setFormError('')
     if (!newSymbol || !newShares || !newCost) { setFormError('All fields required'); return }
@@ -123,7 +127,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         symbol: newSymbol.toUpperCase().trim(),
         shares: parseFloat(newShares),
         cost_basis: parseFloat(newCost),
-        trail_pct: parseFloat(newTrail) || 20,
+        trail_pct: parseFloat(newTrail) || 8,
       }),
     })
     const data = await res.json()
@@ -140,13 +144,13 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setSaving(false)
   }
 
-  // â”€â”€â”€ Remove holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Remove holding ───────────────────────────────────────────────────────
   async function removeHolding(id: string) {
     await fetch(`/api/holdings?id=${id}`, { method: 'DELETE' })
     setHoldings(prev => prev.filter(h => h.id !== id))
   }
 
-  // â”€â”€â”€ Edit holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Edit holding ─────────────────────────────────────────────────────────
   function startEdit(h: Holding) {
     setEditingId(h.id)
     setEditShares(String(h.shares))
@@ -172,7 +176,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
       body: JSON.stringify({
         shares: parseFloat(editShares),
         cost_basis: parseFloat(editCost),
-        trail_pct: parseFloat(editTrail) || 20,
+        trail_pct: parseFloat(editTrail) || 8,
       }),
     })
     const data = await res.json()
@@ -182,13 +186,13 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setEditingId(null)
   }
 
-  // â”€â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Sign out ─────────────────────────────────────────────────────────────
   async function signOut() {
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
 
-  // â”€â”€â”€ Tab click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Tab click ───────────────────────────────────────────────────────────
   // Free users can now click into a locked tab and see a blurred preview of
   // real content (with an Upgrade CTA over it) instead of being bounced
   // straight to the modal. Shows them what they're missing.
@@ -196,7 +200,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setActiveTab(tab)
   }
 
-  // â”€â”€â”€ Derived portfolio metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Derived portfolio metrics ────────────────────────────────────────────
   const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
   const totalCost  = holdings.reduce((s, h) => s + h.cost_basis * h.shares, 0)
   const totalGain  = totalValue - totalCost
@@ -205,85 +209,93 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
 
-      {/* â”€â”€ Header â”€â”€ */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
+      {/* ── Header ── */}
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.12)', background: '#14161c', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{
             width: 22, height: 22, background: 'var(--accent)', borderRadius: 4,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 13,
           }}>O</span>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
-          {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>â†»</span>}
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px', color: 'var(--accent)' }}>Ownfolio LLC</span>
+          {priceLoading && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginLeft: 2 }}>↻</span>}
           <Link
             href="/disclaimer"
-            title="Ownfolio LLC provides data and analytics, not personalized investment advice  -  see full disclaimer"
+            title="Ownfolio LLC provides data and analytics, not personalized investment advice — see full disclaimer"
             style={{
               fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-              color: 'var(--muted)', background: 'var(--surface-2)', border: '1px solid var(--border)',
+              color: 'rgba(255,255,255,0.75)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)',
               borderRadius: 3, padding: '3px 8px', marginLeft: 6, whiteSpace: 'nowrap',
             }}
           >
-            Data &amp; Analytics  -  Not Advice
+            Data &amp; Analytics — Not Advice
           </Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{
             fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 3,
-            background: plan === 'pro' ? 'var(--accent)' : 'var(--surface-2)',
-            color: plan === 'pro' ? '#fff' : 'var(--muted)',
+            background: plan === 'pro' ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
+            color: plan === 'pro' ? '#fff' : 'rgba(255,255,255,0.8)',
             letterSpacing: '0.05em',
           }}>{plan.toUpperCase()}</span>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{email}</span>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{email}</span>
           {plan === 'free' && (
             <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 13, padding: '6px 14px' }}>
               Upgrade
             </button>
           )}
           {plan === 'pro' && (
-            <button className="btn-outline" onClick={() => fetch('/api/stripe/portal').then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })} style={{ fontSize: 13 }}>
+            <button
+              onClick={() => fetch('/api/stripe/portal').then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })}
+              style={{ fontSize: 13, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: '7px 14px' }}
+            >
               Manage Plan
             </button>
           )}
-          <button className="btn-outline" onClick={signOut} style={{ fontSize: 13 }}>Sign out</button>
+          <button
+            onClick={signOut}
+            style={{ fontSize: 13, background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: '7px 14px' }}
+          >
+            Sign out
+          </button>
         </div>
       </header>
 
-      {/* â”€â”€ Free plan banner â”€â”€ */}
+      {/* ── Free plan banner ── */}
       {plan === 'free' && (
         <div style={{ background: 'var(--accent-tint)', borderBottom: '1px solid var(--border)', padding: '8px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 13, color: 'var(--text)' }}>
-            Free plan &middot; {holdings.length}/{FREE_LIMIT} holdings &middot; Fundamentals &amp; Watchlist are Pro
+            Free plan · {holdings.length}/{FREE_LIMIT} holdings · Pro tabs locked
           </span>
           <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 12, padding: '4px 14px' }}>
-            Upgrade to Pro â†’
+            Upgrade to Pro →
           </button>
         </div>
       )}
 
-      {/* â”€â”€ Tabs â”€â”€ */}
+      {/* ── Tabs ── */}
       <nav style={{ display: 'flex', gap: 22, padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', overflowX: 'auto', flexShrink: 0 }}>
         {ALL_TABS.map(tab => {
-          const locked = PRO_ONLY_TABS.includes(tab) && plan === 'free'
+          const locked = tab !== 'Tracker' && tab !== 'Dividends' && plan === 'free'
           const active = activeTab === tab
           return (
             <button key={tab} onClick={() => handleTabClick(tab)} style={{
               padding: '13px 2px', borderRadius: 0, fontSize: 13, background: 'transparent',
-              color: active ? 'var(--text)' : 'var(--muted)',
+              color: 'var(--accent)',
               borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
               opacity: locked ? 0.55 : 1,
               whiteSpace: 'nowrap',
               fontWeight: active ? 700 : 600,
               letterSpacing: '0.01em',
             }}>
-              {locked ? 'ðŸ”’ ' : ''}{tab}
+              {locked ? '🔒 ' : ''}{tab}
             </button>
           )
         })}
       </nav>
 
-      {/* â”€â”€ Main content â”€â”€ */}
-      <main style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+      {/* ── Main content ── */}
+      <main style={{ flex: 1, overflow: 'auto', padding: 24, opacity: tabVisible ? 1 : 0, transform: tabVisible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.2s ease, transform 0.2s ease' }}>
 
         {activeTab === 'Tracker' && (
           <TrackerTab
@@ -309,42 +321,49 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         )}
 
         {activeTab === 'My Returns' && (
-          <MyReturnsTab holdings={holdings} prices={prices} />
-        )}
-
-        {activeTab === 'Position Status' && (
-          <PositionStatusTab holdings={holdings} prices={prices} />
+          <LockedTabPreview locked={plan === 'free'} tabName="My Returns" onUpgrade={() => setShowUpgrade(true)}>
+            <MyReturnsTab holdings={holdings} prices={prices} />
+          </LockedTabPreview>
         )}
 
         {activeTab === 'Allocation View' && (
-          <OptimizerTab holdings={holdings} prices={prices} totalValue={totalValue} plan={plan} onUpgrade={() => setShowUpgrade(true)} />
+          <LockedTabPreview locked={plan === 'free'} tabName="Allocation View" onUpgrade={() => setShowUpgrade(true)}>
+            <OptimizerTab holdings={holdings} prices={prices} totalValue={totalValue} />
+          </LockedTabPreview>
         )}
 
         {activeTab === 'Concentration' && (
-          <ConcentrationTab holdings={holdings} prices={prices} totalValue={totalValue} plan={plan} onUpgrade={() => setShowUpgrade(true)} />
+          <LockedTabPreview locked={plan === 'free'} tabName="Concentration" onUpgrade={() => setShowUpgrade(true)}>
+            <ConcentrationTab holdings={holdings} prices={prices} totalValue={totalValue} />
+          </LockedTabPreview>
         )}
 
         {activeTab === 'Charts' && (
-          <ChartsTab holdings={holdings} prices={prices} />
+          <LockedTabPreview locked={plan === 'free'} tabName="Charts" onUpgrade={() => setShowUpgrade(true)}>
+            <ChartsTab holdings={holdings} prices={prices} />
+          </LockedTabPreview>
+        )}
+
+        {activeTab === 'Benchmark' && (
+          <LockedTabPreview locked={plan === 'free'} tabName="Benchmark" onUpgrade={() => setShowUpgrade(true)}>
+            <BenchmarkTab holdings={holdings} prices={prices} />
+          </LockedTabPreview>
+        )}
+
+        {activeTab === 'Dividends' && (
+          <DividendsTab holdings={holdings} plan={plan} onUpgrade={() => setShowUpgrade(true)} />
         )}
 
         {activeTab === 'Fundamentals' && (
           <LockedTabPreview locked={plan === 'free'} tabName="Fundamentals" onUpgrade={() => setShowUpgrade(true)}>
-            <FundamentalsTab holdings={holdings} prices={prices} />
+            <FundamentalsTab holdings={holdings} />
           </LockedTabPreview>
         )}
 
-        {activeTab === 'Risk' && (
-          <LockedTabPreview locked={plan === 'free'} tabName="Risk" onUpgrade={() => setShowUpgrade(true)}>
-            <RiskTab holdings={holdings} prices={prices} />
-          </LockedTabPreview>
-        )}
         {activeTab === 'News' && (
-          <NewsTab holdings={holdings} prices={prices} />
-        )}
-
-        {activeTab === 'Drawdown Alerts' && (
-          <StopLossTab holdings={holdings} prices={prices} highs={highs} />
+          <LockedTabPreview locked={plan === 'free'} tabName="News" onUpgrade={() => setShowUpgrade(true)}>
+            <NewsTab holdings={holdings} />
+          </LockedTabPreview>
         )}
 
         {activeTab === 'Watchlist' && (
@@ -362,7 +381,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   )
 }
 
-// â”€â”€â”€ Tracker Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tracker Tab ──────────────────────────────────────────────────────────────
 function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit, editingId, onStartEdit, onCancelEdit, onSaveEdit, editShares, setEditShares, editCost, setEditCost, editTrail, setEditTrail, editError, editSaving }: {
   holdings: Holding[]; prices: PriceMap; plan: Plan
   totalValue: number; totalCost: number; totalGain: number; totalPct: number
@@ -379,41 +398,122 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   editTrail: string; setEditTrail: (v: string) => void
   editError: string; editSaving: boolean
 }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
   return (
     <div>
       {/* Summary cards */}
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20, color: 'var(--accent)' }}>Tracker</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Portfolio Value', value: `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
-          { label: 'Total Cost Basis', value: `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
-          { label: 'Total Gain / Loss', value: `${totalGain >= 0 ? '+' : ''}$${totalGain.toFixed(2)} (${totalPct.toFixed(2)}%)`, color: totalGain >= 0 ? 'var(--green)' : 'var(--red)' },
-        ].map(({ label, value, color }) => (
+          { label: 'Portfolio Value', raw: totalValue, format: (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
+          { label: 'Total Cost Basis', raw: totalCost, format: (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--text)' },
+          { label: 'Total Gain / Loss', raw: totalGain, format: (n: number) => `${n >= 0 ? '+' : ''}$${n.toFixed(2)} (${totalPct.toFixed(2)}%)`, color: totalGain >= 0 ? 'var(--green)' : 'var(--red)' },
+        ].map(({ label, raw, format, color }) => (
           <div key={label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color }}><AnimatedNumber value={raw} format={format} /></div>
           </div>
         ))}
       </div>
 
-      {/* Holdings card grid */}
-      {holdings.length > 0 ? (
-        <HoldingsCardGrid holdings={holdings} prices={prices} onStartEdit={onStartEdit} onRemove={onRemove} />
-      ) : (
-        <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          No holdings yet. Add your first position below.
-        </div>
-      )}
+      {/* Holdings table */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh', marginBottom: 20 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 640 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+              {['Symbol', 'Shares', 'Cost / Share', 'Current Price', 'Value', 'Gain / Loss', 'Trail Stop', ''].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--muted)' }}>
+                No holdings yet. Add your first position below.
+              </td></tr>
+            )}
+            {holdings.map(h => {
+              const price = prices[h.symbol] ?? null
+              const value = price != null ? price * h.shares : null
+              const gain  = value != null ? value - h.cost_basis * h.shares : null
+              const pct   = gain != null && h.cost_basis ? (gain / (h.cost_basis * h.shares)) * 100 : null
+              const stopPrice = price != null ? price * (1 - h.trail_pct / 100) : null
+              const atRisk = stopPrice != null && h.cost_basis > stopPrice
+              const isEditing = editingId === h.id
+
+              if (isEditing) {
+                return (
+                  <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editShares} onChange={e => setEditShares(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 90 }} />
+                    </td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editCost} onChange={e => setEditCost(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 90 }} />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>{price != null ? `$${price.toFixed(2)}` : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{value != null ? `$${value.toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>—</td>
+                    <td style={{ padding: '8px 16px' }}>
+                      <input value={editTrail} onChange={e => setEditTrail(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSaveEdit(h.id)} style={{ width: 60 }} />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn-primary" onClick={() => onSaveEdit(h.id)} disabled={editSaving} style={{ padding: '3px 10px', fontSize: 12 }}>
+                          {editSaving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button className="btn-outline" onClick={onCancelEdit} style={{ padding: '3px 10px', fontSize: 12 }}>
+                          Cancel
+                        </button>
+                      </div>
+                      {editError && <p style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{editError}</p>}
+                    </td>
+                  </tr>
+                )
+              }
+
+              return (
+                <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                  <td style={{ padding: '12px 16px' }}>{h.shares.toLocaleString()}</td>
+                  <td style={{ padding: '12px 16px' }}>${h.cost_basis.toFixed(2)}</td>
+                  <td style={{ padding: '12px 16px' }}>{price != null ? `$${price.toFixed(2)}` : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{value != null ? `$${value.toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '12px 16px', color: gain == null ? 'var(--muted)' : gain >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                    {gain != null && pct != null ? `${gain >= 0 ? '+' : ''}$${gain.toFixed(2)} (${pct.toFixed(1)}%)` : '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ color: atRisk ? 'var(--red)' : 'var(--muted)', fontWeight: atRisk ? 700 : 400 }}>
+                      {h.trail_pct}%{stopPrice != null ? ` → $${stopPrice.toFixed(2)}` : ''}
+                      {atRisk && ' ⚠️'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => onStartEdit(h)} style={{ background: 'transparent', color: 'var(--accent)', padding: '3px 9px', border: '1px solid var(--accent)', borderRadius: 4, fontSize: 12 }}>
+                        Edit
+                      </button>
+                      <button onClick={() => onRemove(h.id)} style={{ background: 'transparent', color: 'var(--red)', padding: '3px 9px', border: '1px solid var(--red)', borderRadius: 4, fontSize: 12 }}>
+                        Remove
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
       {/* Add holding form */}
       {showAddForm ? (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 560 }}>
-          <h3 style={{ marginBottom: 18, fontSize: 15, fontWeight: 600 }}>Add Holding</h3>
+          <h3 style={{ marginBottom: 18, fontSize: 15, fontWeight: 600, color: 'var(--accent)' }}>Add Holding</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             {[
               { label: 'Ticker Symbol', value: newSymbol, set: setNewSymbol, placeholder: 'AAPL', upper: true },
               { label: 'Shares', value: newShares, set: setNewShares, placeholder: '10' },
               { label: 'Cost Basis (per share)', value: newCost, set: setNewCost, placeholder: '150.00' },
-              { label: 'Drawdown Threshold %', value: newTrail, set: setNewTrail, placeholder: '20' },
+              { label: 'Trailing Stop %', value: newTrail, set: setNewTrail, placeholder: '8' },
             ].map(({ label, value, set, placeholder, upper }) => (
               <div key={label}>
                 <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 5, fontWeight: 500 }}>{label}</label>
@@ -428,7 +528,7 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
           </div>
           {formError && <p style={{ color: 'var(--red)', fontSize: 13, marginTop: 10 }}>{formError}</p>}
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button className="btn-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving - ' : 'Add Holding'}</button>
+            <button className="btn-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Add Holding'}</button>
             <button className="btn-outline" onClick={onCancelAdd}>Cancel</button>
           </div>
         </div>
@@ -446,14 +546,13 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   )
 }
 
-// â”€â”€â”€ My Returns Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── My Returns Tab ───────────────────────────────────────────────────────────
 // Sorts the user's own holdings by their own return since purchase. This is a
-// personal calculation off each holding's individual cost basis  -  not a rating
+// personal calculation off each holding's individual cost basis — not a rating
 // of the security itself. Two people holding the same stock will see different
 // numbers here depending on what they each paid, which is why this is framed as
 // a personal-return view rather than a "ranking" of the companies.
 function MyReturnsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
   const ranked = [...holdings]
     .map(h => {
       const price = prices[h.symbol]
@@ -464,34 +563,89 @@ function MyReturnsTab({ holdings, prices }: { holdings: Holding[]; prices: Price
     .sort((a, b) => (b.gain ?? -Infinity) - (a.gain ?? -Infinity))
 
   return (
-    <ProTabShell title="My Returns" description="Your own holdings sorted by return since your purchase price  -  a personal calculation, not a rating of the companies themselves.">
-      <ReturnsCardGrid holdings={holdings} prices={prices} colorMap={colorMap} />
+    <ProTabShell title="My Returns" description="Your own holdings sorted by return since your purchase price — a personal calculation, not a rating of the companies themselves.">
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 560 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+              {['#', 'Symbol', 'Current Price', 'Cost Basis', 'Your Return %', 'Market Value'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Add holdings in the Tracker tab to see rankings.</td></tr>
+            )}
+            {ranked.map((h, i) => (
+              <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '12px 16px', color: 'var(--muted)', fontWeight: 700 }}>#{i + 1}</td>
+                <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: 15 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                <td style={{ padding: '12px 16px' }}>{h.price ? `$${h.price.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px' }}>${h.cost_basis.toFixed(2)}</td>
+                <td style={{ padding: '12px 16px', fontWeight: 700, color: h.gain == null ? 'var(--muted)' : h.gain >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {h.gain != null ? `${h.gain >= 0 ? '+' : ''}${h.gain.toFixed(2)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px' }}>${h.value.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Position Status Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Describes what changed in a position (price vs. your own cost basis only).
-// Renamed from "Signals"  -  like My Returns, this is computed off each user's
-// private cost basis, so it is a
+// ─── Position Status Tab ──────────────────────────────────────────────────────
+// Describes what changed in a position (price vs. your own cost basis, proximity
+// to your own trailing-stop threshold). Renamed from "Signals" — like My Returns,
+// this is computed off each user's private cost basis and trail %, so it is a
 // status description of your position, not a market signal or research call about
 // the security. Deliberately does NOT output buy/sell/hold verdicts.
 function PositionStatusTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
+  type SignalState = 'NEAR_STOP' | 'DOWN' | 'UP_STRONG' | 'UP' | 'NO_DATA'
+
+  function getSignal(h: Holding, price: number | undefined): { state: SignalState; label: string; reason: string } {
+    if (!price) return { state: 'NO_DATA', label: 'NO DATA', reason: 'Awaiting price data' }
+    const ret = (price - h.cost_basis) / h.cost_basis * 100
+    const stopPrice = price * (1 - h.trail_pct / 100)
+    if (h.cost_basis > stopPrice) return { state: 'NEAR_STOP', label: 'NEAR TRAILING-STOP', reason: `Price is near your trailing-stop threshold ($${stopPrice.toFixed(2)})` }
+    if (ret < -15) return { state: 'DOWN', label: 'DOWN', reason: `Down ${ret.toFixed(1)}% from cost basis` }
+    if (ret > 30) return { state: 'UP_STRONG', label: 'UP STRONG', reason: `Up ${ret.toFixed(1)}% from cost basis` }
+    if (ret >= 0) return { state: 'UP', label: 'UP', reason: `Up ${ret.toFixed(1)}% — within normal range` }
+    return { state: 'DOWN', label: 'DOWN', reason: `Down ${ret.toFixed(1)}% from cost basis` }
+  }
+
+  const stateColor = { NEAR_STOP: 'var(--yellow)', DOWN: 'var(--red)', UP_STRONG: 'var(--green)', UP: 'var(--accent)', NO_DATA: 'var(--muted)' }
 
   return (
-    <ProTabShell title="Position Status" description="How each position has moved relative to your own cost basis  -  a personal status view, not a market call. Drawdown from a stock's 52-week high is shown in the Drawdown Alerts tab.">
-      <PositionStatusCardGrid holdings={holdings} prices={prices} colorMap={colorMap} />
+    <ProTabShell title="Position Status" description="How each position has moved relative to your own cost basis and stop threshold — a personal status view, not a market call.">
+      <div style={{ display: 'grid', gap: 12 }}>
+        {holdings.length === 0 && <EmptyState />}
+        {holdings.map(h => {
+          const { state, label, reason } = getSignal(h, prices[h.symbol])
+          return (
+            <div key={h.id} style={{ background: 'var(--surface)', border: `1px solid var(--border)`, borderLeft: `4px solid ${stateColor[state]}`, borderRadius: 8, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{h.symbol}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>{reason}</div>
+              </div>
+              <div style={{ background: stateColor[state], color: '#fff', fontWeight: 800, fontSize: 12, padding: '5px 14px', borderRadius: 3, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>
+                {label}
+              </div>
+            </div>
+          )
+        })}
+      </div>
       <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
-        These describe what's changed in a position  -  they are not buy, sell, or hold instructions. Always do your own research.
+        ⚠️ These describe what's changed in a position — they are not buy, sell, or hold instructions. Always do your own research.
       </p>
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Optimizer Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function OptimizerTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdings: Holding[]; prices: PriceMap; totalValue: number; plan: Plan; onUpgrade: () => void }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
+// ─── Optimizer Tab ────────────────────────────────────────────────────────────
+function OptimizerTab({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
   const withWeights = holdings.map(h => {
     const value = (prices[h.symbol] ?? h.cost_basis) * h.shares
     const weight = totalValue > 0 ? (value / totalValue) * 100 : 0
@@ -503,21 +657,22 @@ function OptimizerTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdi
   const underweight = withWeights.filter(h => h.weight < 5 && holdings.length > 4)
 
   return (
-    <ProTabShell title="Allocation View" description="How your holdings compare to the targets you set. You choose the targets  -  this just shows the math.">
-      <AllocationCardGrid holdings={holdings} prices={prices} totalValue={totalValue} colorMap={colorMap} />
+    <ProTabShell title="Allocation View" description="How your holdings compare to the targets you set. You choose the targets — this just shows the math.">
       {/* Weight chart */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '20px 24px', marginBottom: 20 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Portfolio Allocation</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: 'var(--accent)' }}>Portfolio Allocation</h3>
         {holdings.length === 0 ? <EmptyState /> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {withWeights.sort((a, b) => b.weight - a.weight).map(h => (
               <div key={h.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: colorMap[h.symbol] }}>{h.symbol}</span>
-                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{h.weight.toFixed(1)}% &middot; ${h.value.toFixed(0)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: getSymbolColor(h.symbol) }}>
+                    {h.symbol}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{h.weight.toFixed(1)}% · ${h.value.toFixed(0)}</span>
                 </div>
                 <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                  <div style={{ width: `${h.weight}%`, height: '100%', background: colorMap[h.symbol], borderRadius: 4, transition: 'width .3s' }} />
+                  <div style={{ width: `${h.weight}%`, height: '100%', background: h.weight > 25 ? 'var(--red)' : 'var(--accent)', borderRadius: 4, transition: 'width .3s' }} />
                 </div>
               </div>
             ))}
@@ -525,45 +680,33 @@ function OptimizerTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdi
         )}
       </div>
 
-      {/* Notes  -  descriptive only, not instructions. Pro-only: the free tier
-          gets the allocation chart above; this insight layer is reserved. */}
-      {plan === 'free' ? (
-        (topHeavy.length > 0 || underweight.length > 0) && (
-          <InlineProUpsell
-            label="Allocation Notes"
-            description="See callouts when a position looks top-heavy or thin relative to the rest of your portfolio."
-            onUpgrade={onUpgrade}
-          />
-        )
-      ) : (
-        (topHeavy.length > 0 || underweight.length > 0) && (
-          <div style={{ display: 'grid', gap: 12 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600 }}>Allocation Notes</h3>
-            {topHeavy.map(h => (
-              <Callout key={h.id} type="warning" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
-                This is above the common 25% concentration marker some long-term investors watch.
-              </Callout>
-            ))}
-            {underweight.map(h => (
-              <Callout key={h.id} type="info" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
-                A small position relative to the rest of your holdings.
-              </Callout>
-            ))}
-          </div>
-        )
+      {/* Notes — descriptive only, not instructions */}
+      {(topHeavy.length > 0 || underweight.length > 0) && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>Allocation Notes</h3>
+          {topHeavy.map(h => (
+            <Callout key={h.id} type="warning" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
+              This is above the common 25% concentration marker some long-term investors watch.
+            </Callout>
+          ))}
+          {underweight.map(h => (
+            <Callout key={h.id} type="info" title={`${h.symbol} is ${h.weight.toFixed(1)}% of your portfolio`}>
+              A small position relative to the rest of your holdings.
+            </Callout>
+          ))}
+        </div>
       )}
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Concentration Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Concentration Tab ────────────────────────────────────────────────────────
 // Replaces the former Kelly-criterion position-sizing tool. That tool computed a
-// "recommended" position size from an assumed win probability  -  which functions
+// "recommended" position size from an assumed win probability — which functions
 // like personalized position-sizing advice and doesn't fit long-term, conviction-
 // based ownership. This tab only shows a fact: how much of the portfolio each
 // holding currently represents. No formula, no recommended size.
-function ConcentrationTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdings: Holding[]; prices: PriceMap; totalValue: number; plan: Plan; onUpgrade: () => void }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
+function ConcentrationTab({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
   const withWeight = holdings.map(h => {
     const price = prices[h.symbol]
     const value = (price ?? h.cost_basis) * h.shares
@@ -573,36 +716,49 @@ function ConcentrationTab({ holdings, prices, totalValue, plan, onUpgrade }: { h
   }).sort((a, b) => b.weight - a.weight)
 
   return (
-    <ProTabShell title="Concentration" description="How much of your portfolio each holding represents  -  a fact, not a formula telling you what to buy.">
-      <ConcentrationCardGrid holdings={holdings} prices={prices} totalValue={totalValue} colorMap={colorMap} />
-            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
+    <ProTabShell title="Concentration" description="How much of your portfolio each holding represents — a fact, not a formula telling you what to buy.">
+      {holdings.length > 0 && <DiversificationBreakdown withWeight={withWeight} />}
+
+      <div style={{ display: 'grid', gap: 12, marginTop: holdings.length > 0 ? 28 : 0 }}>
+        {holdings.length === 0 && <EmptyState />}
+        {withWeight.map(h => (
+          <div key={h.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: getSymbolColor(h.symbol) }}>
+                  {h.symbol}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>${h.value.toFixed(0)} market value</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Return since purchase</div>
+                <div style={{ fontWeight: 700, color: h.ret == null ? 'var(--muted)' : h.ret >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {h.ret != null ? `${h.ret >= 0 ? '+' : ''}${h.ret.toFixed(1)}%` : '—'}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Share of portfolio</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>{h.weight.toFixed(1)}%</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
         This is a description of your current holdings, not a recommendation for how to size any position.
       </p>
-
-      {holdings.length > 0 && (
-        plan === 'free' ? (
-          <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-            <InlineProUpsell
-              label="Industry Concentration"
-              description="See the same holdings grouped by industry classification instead of by symbol."
-              onUpgrade={onUpgrade}
-            />
-          </div>
-        ) : (
-          <IndustryConcentration withWeight={withWeight} />
-        )
-      )}
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Industry Concentration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Same per-holding weights as above, grouped by Finnhub's industry classification
-// (finnhubIndustry, from /stock/profile2  -  free tier, already used in the
-// Fundamentals tab) instead of by symbol. Same "fact, not a formula" framing as
-// the rest of this tab  -  just a different grouping of the same numbers.
-function IndustryConcentration({ withWeight }: { withWeight: Array<{ symbol: string; weight: number }> }) {
+// ─── Diversification Breakdown ────────────────────────────────────────────────
+// Same per-holding weights as above, grouped by Finnhub's industry and country
+// classification (from /stock/profile2 — free tier, already used elsewhere)
+// instead of by symbol. Same "fact, not a formula" framing as the rest of this
+// tab. Each grouping gets both a bar list and a pie chart.
+function DiversificationBreakdown({ withWeight }: { withWeight: Array<{ symbol: string; weight: number }> }) {
   const [industryMap, setIndustryMap] = useState<Record<string, string | null>>({})
+  const [countryMap, setCountryMap] = useState<Record<string, string | null>>({})
   const [loading, setLoading] = useState(true)
   const symbolsKey = [...new Set(withWeight.map(h => h.symbol))].join(',')
 
@@ -615,69 +771,130 @@ function IndustryConcentration({ withWeight }: { withWeight: Array<{ symbol: str
       symbols.map(sym =>
         fetch(`/api/finnhub?type=fundamentals&symbol=${encodeURIComponent(sym)}`)
           .then(res => (res.ok ? res.json() : null))
-          .then((d: { industry: string | null } | null) => [sym, d?.industry ?? null] as [string, string | null])
-          .catch(() => [sym, null] as [string, string | null])
+          .then((d: { industry: string | null; country: string | null } | null) => [sym, d?.industry ?? null, d?.country ?? null] as [string, string | null, string | null])
+          .catch(() => [sym, null, null] as [string, string | null, string | null])
       )
-    ).then(pairs => {
+    ).then(triples => {
       if (cancelled) return
-      const map: Record<string, string | null> = {}
-      for (const [sym, industry] of pairs) map[sym] = industry
-      setIndustryMap(map)
+      const iMap: Record<string, string | null> = {}
+      const cMap: Record<string, string | null> = {}
+      for (const [sym, industry, country] of triples) { iMap[sym] = industry; cMap[sym] = country }
+      setIndustryMap(iMap)
+      setCountryMap(cMap)
     }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [symbolsKey])
 
-  const grouped = (() => {
+  const groupBy = (map: Record<string, string | null>, fallback: string) => {
     const totals: Record<string, number> = {}
     for (const h of withWeight) {
-      const key = industryMap[h.symbol] ?? 'Unclassified'
+      const key = map[h.symbol] ?? fallback
       totals[key] = (totals[key] ?? 0) + h.weight
     }
     return Object.entries(totals).sort((a, b) => b[1] - a[1])
-  })()
+  }
+
+  const byIndustry = groupBy(industryMap, 'Unclassified')
+  const byCountry = groupBy(countryMap, 'Unclassified')
+  const stillLoading = loading && Object.keys(industryMap).length === 0
 
   return (
-    <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>By Industry</h3>
-      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
-        The same holdings above, grouped by industry classification instead of by symbol  -  sourced from public company data, not a sector call of our own.
-      </p>
-      {loading && Object.keys(industryMap).length === 0 ? (
-        <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading - </p>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 24 }}>
+      <DiversificationSection
+        title="By Industry"
+        note="The same holdings above, grouped by industry classification instead of by symbol — sourced from public company data, not a sector call of our own."
+        grouped={byIndustry}
+        loading={stillLoading}
+      />
+      <DiversificationSection
+        title="By Country"
+        note="Grouped by each company's country of domicile, per public company data. Most funds and companies here are U.S.-based, so don't expect much spread if that's your portfolio."
+        grouped={byCountry}
+        loading={stillLoading}
+      />
+    </div>
+  )
+}
+
+const PIE_COLORS = ['var(--accent)', 'var(--green)', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316', '#64748b', '#22c55e', '#eab308']
+
+// Same color every time for a given symbol, regardless of sort order or
+// which tab it's shown in — a simple string hash into the shared palette
+// above, so e.g. AAPL is always the same color on Tracker, Charts, Watchlist, etc.
+function getSymbolColor(symbol: string): string {
+  let hash = 0
+  for (let i = 0; i < symbol.length; i++) hash = (hash * 31 + symbol.charCodeAt(i)) >>> 0
+  return PIE_COLORS[hash % PIE_COLORS.length]
+}
+
+function DiversificationSection({ title, note, grouped, loading }: {
+  title: string; note: string; grouped: Array<[string, number]>; loading: boolean
+}) {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, color: 'var(--accent)' }}>{title}</h3>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>{note}</p>
+      {loading ? (
+        <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {grouped.map(([industry, weight]) => (
-            <div key={industry}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{industry}</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{weight.toFixed(1)}%</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {grouped.map(([label, weight], i) => (
+              <div key={label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: PIE_COLORS[i % PIE_COLORS.length], display: 'inline-block' }} />
+                    {label}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{weight.toFixed(1)}%</span>
+                </div>
+                <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(weight, 100)}%`, height: '100%', background: PIE_COLORS[i % PIE_COLORS.length], borderRadius: 4 }} />
+                </div>
               </div>
-              <div style={{ background: 'var(--border)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(weight, 100)}%`, height: '100%', background: 'var(--accent)', borderRadius: 4 }} />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <DiversificationPie grouped={grouped} />
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-// Shared color palette + per-symbol color map, so a given symbol shows the
-// same color everywhere (Allocation by Symbol, Gain/Loss by Position, and
-// Allocation View) instead of three separate color schemes.
-const SYMBOL_COLORS = ['var(--accent)', 'var(--green)', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316']
+// Simple CSS conic-gradient pie chart — no chart library needed, and it's
+// just a different view of the exact same numbers shown in the bars above.
+function DiversificationPie({ grouped }: { grouped: Array<[string, number]> }) {
+  const total = grouped.reduce((s, [, w]) => s + w, 0)
+  if (total <= 0) return null
 
-function getSymbolColorMap(holdings: Holding[], prices: PriceMap): Record<string, string> {
-  const sorted = [...holdings]
-    .map(h => ({ symbol: h.symbol, value: (prices[h.symbol] ?? h.cost_basis) * h.shares }))
-    .sort((a, b) => b.value - a.value)
-  const map: Record<string, string> = {}
-  sorted.forEach((h, i) => { map[h.symbol] = SYMBOL_COLORS[i % SYMBOL_COLORS.length] })
-  return map
+  let cursor = 0
+  const stops: string[] = []
+  grouped.forEach(([, weight], i) => {
+    const start = (cursor / total) * 360
+    cursor += weight
+    const end = (cursor / total) * 360
+    stops.push(`${PIE_COLORS[i % PIE_COLORS.length]} ${start}deg ${end}deg`)
+  })
+
+  return (
+    <div
+      role="img"
+      aria-label="Pie chart of portfolio weight distribution"
+      style={{
+        width: 160,
+        height: 160,
+        borderRadius: '50%',
+        background: `conic-gradient(${stops.join(', ')})`,
+        border: '1px solid var(--border)',
+        flexShrink: 0,
+      }}
+    />
+  )
 }
 
-// â”€â”€â”€ Charts Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Charts Tab ───────────────────────────────────────────────────────────────
 function ChartsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
   const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
 
@@ -687,14 +904,14 @@ function ChartsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
           {/* Allocation donut-style bar */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Allocation by Position</h3>
-            <AllocationPie holdings={holdings} prices={prices} totalValue={totalValue} colorMap={getSymbolColorMap(holdings, prices)} />
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: 'var(--accent)' }}>Allocation by Symbol</h3>
+            <AllocationBar holdings={holdings} prices={prices} totalValue={totalValue} />
           </div>
 
           {/* Gain/Loss bar chart */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Return by Position</h3>
-            <GainLossBar holdings={holdings} prices={prices} />
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: 'var(--accent)' }}>Gain / Loss by Position</h3>
+            <GainLossChart holdings={holdings} prices={prices} />
           </div>
         </div>
       )}
@@ -703,7 +920,6 @@ function ChartsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap
 }
 
 function AllocationBar({ holdings, prices, totalValue }: { holdings: Holding[]; prices: PriceMap; totalValue: number }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
   const sorted = [...holdings].map(h => ({
     symbol: h.symbol,
     value: (prices[h.symbol] ?? h.cost_basis) * h.shares,
@@ -714,15 +930,14 @@ function AllocationBar({ holdings, prices, totalValue }: { holdings: Holding[]; 
     <div>
       <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
         {sorted.map((h) => (
-          <div key={h.symbol} style={{ width: `${h.pct}%`, background: colorMap[h.symbol], transition: 'width .3s' }} title={`${h.symbol}: ${h.pct.toFixed(1)}%`} />
+          <div key={h.symbol} style={{ width: `${h.pct}%`, background: getSymbolColor(h.symbol), transition: 'width .3s' }} title={`${h.symbol}: ${h.pct.toFixed(1)}%`} />
         ))}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {sorted.map((h) => (
           <div key={h.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: colorMap[h.symbol], flexShrink: 0 }} />
-            <span style={{ color: colorMap[h.symbol], fontWeight: 600 }}>{h.symbol}</span>{' '}
-            <span style={{ color: 'var(--muted)' }}>{h.pct.toFixed(1)}%</span>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: getSymbolColor(h.symbol), flexShrink: 0 }} />
+            <span style={{ color: 'var(--muted)' }}><span style={{ color: getSymbolColor(h.symbol), fontWeight: 700 }}>{h.symbol}</span> {h.pct.toFixed(1)}%</span>
           </div>
         ))}
       </div>
@@ -731,7 +946,6 @@ function AllocationBar({ holdings, prices, totalValue }: { holdings: Holding[]; 
 }
 
 function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
   const data = holdings.map(h => {
     const price = prices[h.symbol]
     const ret = price ? (price - h.cost_basis) / h.cost_basis * 100 : 0
@@ -745,7 +959,9 @@ function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: Pric
       {data.map(d => (
         <div key={d.symbol}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: colorMap[d.symbol] }}>{d.symbol}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: getSymbolColor(d.symbol) }}>
+              {d.symbol}
+            </span>
             <span style={{ fontSize: 12, color: d.ret >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
               {d.ret >= 0 ? '+' : ''}{d.ret.toFixed(2)}%
             </span>
@@ -754,7 +970,7 @@ function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: Pric
             <div style={{
               width: `${(Math.abs(d.ret) / maxAbs) * 100}%`,
               height: '100%',
-              background: colorMap[d.symbol],
+              background: d.ret >= 0 ? 'var(--green)' : 'var(--red)',
               borderRadius: 4,
             }} />
           </div>
@@ -764,15 +980,14 @@ function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: Pric
   )
 }
 
-// â”€â”€â”€ Fundamentals Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Fundamentals Tab ─────────────────────────────────────────────────────────
 // Includes generic per-ticker percentile scores, shown individually rather
 // than blended into one number (My Returns / Position Status are personal
-// calculators computed off each user's own cost basis  -  this is the
+// calculators computed off each user's own cost basis — this is the
 // opposite: one shared table, computed identically for every symbol on a
 // daily schedule from public data, then filtered to what you hold). See
 // app/api/cron/refresh-ticker-metrics and Ownfolio_Publishers_Exclusion_Attorney_Memo.docx.
-function FundamentalsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
+function FundamentalsTab({ holdings }: { holdings: Holding[] }) {
   const [metricsMap, setMetricsMap] = useState<Record<string, TickerMetrics>>({})
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -787,87 +1002,26 @@ function FundamentalsTab({ holdings, prices }: { holdings: Holding[]; prices: Pr
         for (const item of d.items ?? []) map[item.symbol] = item
         setMetricsMap(map)
       })
-      .catch(() => { /* silent  -  card falls back to "not yet scored" */ })
+      .catch(() => { /* silent — card falls back to "not yet scored" */ })
       .finally(() => setMetricsLoading(false))
   }, [holdings])
 
   return (
-    <ProTabShell title="Fundamentals" description="Summary, Dividends, Growth, Valuation, Profitability, and Price Performance for each holding  -  as-reported figures from public data, plus four individual percentile scores computed the same way for every ticker on a daily schedule.">
+    <ProTabShell title="Fundamentals" description="Summary, Dividends, Growth, Valuation, Profitability, and Price Performance for each holding — as-reported figures from public data, plus four individual percentile scores computed the same way for every ticker on a daily schedule.">
       {holdings.length === 0 ? <EmptyState /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           {holdings.map(h => (
-            <FundamentalsCard key={h.id} symbol={h.symbol} metrics={metricsMap[h.symbol]} metricsLoading={metricsLoading} color={colorMap[h.symbol]} />
+            <FundamentalsCard key={h.id} symbol={h.symbol} metrics={metricsMap[h.symbol]} metricsLoading={metricsLoading} />
           ))}
         </div>
       )}
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 16, lineHeight: 1.6 }}>
-        Scoring methodology (v1): four equally-weighted factors, each scored 0 - 100  -  Valuation (P/E percentile among tracked tickers, lower P/E scores higher), Growth (revenue growth percentile), Margin Trend (expanding/flat/contracting vs. the 5-year average), and Stability (beta percentile, lower beta scores higher). Each is computed identically for every ticker from public data and refreshed daily  -  shown individually, not blended into a single number  -  and none of it is tailored to your portfolio, your cost basis, or your position size, or a recommendation to buy, hold, or sell.
+        Scoring methodology (v1): four equally-weighted factors, each scored 0–100 — Valuation (P/E percentile among tracked tickers, lower P/E scores higher), Growth (revenue growth percentile), Margin Trend (expanding/flat/contracting vs. the 5-year average), and Stability (beta percentile, lower beta scores higher). Each is computed identically for every ticker from public data and refreshed daily — shown individually, not blended into a single number — and none of it is tailored to your portfolio, your cost basis, or your position size, or a recommendation to buy, hold, or sell.
       </p>
     </ProTabShell>
   )
 }
 
-function RiskTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const [betaMap, setBetaMap] = useState<Record<string, number | null>>({})
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const symbols = [...new Set(holdings.map(h => h.symbol))]
-    if (!symbols.length) { setLoading(false); return }
-    setLoading(true)
-    fetch('/api/ticker-metrics?symbols=' + encodeURIComponent(symbols.join(',')))
-      .then(res => (res.ok ? res.json() : { items: [] }))
-      .then((d: { items: { symbol: string; beta: number | null }[] }) => {
-        const map: Record<string, number | null> = {}
-        for (const item of d.items ?? []) map[item.symbol] = item.beta
-        setBetaMap(map)
-      })
-      .finally(() => setLoading(false))
-  }, [holdings])
-
-  if (holdings.length === 0) return <EmptyState />
-  if (loading) {
-    return (
-      <ProTabShell title="Risk" description="Beta for each holding and your overall portfolio.">
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading...</p>
-      </ProTabShell>
-    )
-  }
-
-  let weightedSum = 0
-  let totalValue = 0
-  for (const h of holdings) {
-    const beta = betaMap[h.symbol]
-    if (beta == null) continue
-    const value = (prices[h.symbol] ?? h.cost_basis) * h.shares
-    weightedSum += beta * value
-    totalValue += value
-  }
-  const portfolioBeta = totalValue > 0 ? weightedSum / totalValue : null
-
-  return (
-    <ProTabShell title="Risk" description="Beta for each holding and your overall portfolio, as reported by Finnhub.">
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
-        padding: '16px 18px', marginBottom: 20,
-      }}>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2 }}>Portfolio Beta</div>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>
-          {portfolioBeta != null ? portfolioBeta.toFixed(2) : '\u2014'}
-        </div>
-      </div>
-
-      <RiskCardGrid holdings={holdings} prices={prices} betaMap={betaMap} colorMap={getSymbolColorMap(holdings, prices)} />
-
-      <p style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', color: 'var(--muted)', fontSize: 11.5, lineHeight: 1.6 }}>
-        Beta measures how much a holding's price has historically moved relative to the broader market,
-        as reported by Finnhub and refreshed daily. A beta above 1 has historically moved more than the
-        market; below 1, less. Portfolio Beta is a value-weighted average across your holdings.
-        This is historical only and not a recommendation.
-      </p>
-    </ProTabShell>
-  )
-}
 interface Fundamentals {
   symbol: string
   name: string | null
@@ -931,29 +1085,29 @@ const DETAIL_TABS = ['Summary', 'Dividends', 'Growth', 'Valuation', 'Profitabili
 type DetailTab = typeof DETAIL_TABS[number]
 
 function fmtPct(v: number | null): string {
-  if (v == null) return ' - '
+  if (v == null) return '—'
   const sign = v >= 0 ? '+' : ''
   return `${sign}${v.toFixed(2)}%`
 }
 
 function fmtNum(v: number | null, suffix = ''): string {
-  return v != null ? `${v.toFixed(2)}${suffix}` : ' - '
+  return v != null ? `${v.toFixed(2)}${suffix}` : '—'
 }
 
 function fmtDate(v: string | null): string {
-  if (!v) return ' - '
+  if (!v) return '—'
   const d = new Date(v)
   return isNaN(d.getTime()) ? v : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function fmtMarketCap(m: number | null) {
-  if (m == null) return ' - '
+  if (m == null) return '—'
   if (m >= 1_000_000) return `$${(m / 1_000_000).toFixed(2)}T`
   if (m >= 1_000) return `$${(m / 1_000).toFixed(2)}B`
   return `$${m.toFixed(0)}M`
 }
 
-// Every category below is a flat list of published, as-reported figures  - 
+// Every category below is a flat list of published, as-reported figures —
 // no percentile ranking, letter grade, or color-coded verdict. That scoring
 // treatment stays confined to the existing "Percentile Scores" section
 // (computed identically for every ticker, shown separately) per the
@@ -964,14 +1118,14 @@ function detailRows(data: Fundamentals, tab: DetailTab): [string, string][] {
       return [
         ['Market Cap', fmtMarketCap(data.marketCap)],
         ['P/E Ratio (TTM)', fmtNum(data.peRatio)],
-        ['52W High', data.week52High != null ? `$${data.week52High.toFixed(2)}` : ' - '],
-        ['52W Low', data.week52Low != null ? `$${data.week52Low.toFixed(2)}` : ' - '],
+        ['52W High', data.week52High != null ? `$${data.week52High.toFixed(2)}` : '—'],
+        ['52W Low', data.week52Low != null ? `$${data.week52Low.toFixed(2)}` : '—'],
         ['Beta', fmtNum(data.beta)],
       ]
     case 'Dividends':
       return [
-        ['Annual Dividend/Share', data.dividends.perShareAnnual != null ? `$${data.dividends.perShareAnnual.toFixed(2)}` : ' - '],
-        ['Indicated Annual Div.', data.dividends.indicatedAnnual != null ? `$${data.dividends.indicatedAnnual.toFixed(2)}` : ' - '],
+        ['Annual Dividend/Share', data.dividends.perShareAnnual != null ? `$${data.dividends.perShareAnnual.toFixed(2)}` : '—'],
+        ['Indicated Annual Div.', data.dividends.indicatedAnnual != null ? `$${data.dividends.indicatedAnnual.toFixed(2)}` : '—'],
         ['Indicated Yield', fmtPct(data.dividends.yieldIndicatedAnnual)],
         ['TTM Yield', fmtPct(data.dividends.yieldTTM)],
         ['Payout Ratio (TTM)', fmtPct(data.dividends.payoutRatioTTM)],
@@ -1018,7 +1172,7 @@ function detailRows(data: Fundamentals, tab: DetailTab): [string, string][] {
   }
 }
 
-function FundamentalsCard({ symbol, metrics, metricsLoading, color }: { symbol: string; metrics?: TickerMetrics; metricsLoading?: boolean; color?: string }) {
+function FundamentalsCard({ symbol, metrics, metricsLoading }: { symbol: string; metrics?: TickerMetrics; metricsLoading?: boolean }) {
   const [data, setData] = useState<Fundamentals | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -1044,11 +1198,13 @@ function FundamentalsCard({ symbol, metrics, metricsLoading, color }: { symbol: 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color }}>{symbol}</div>
+        <div style={{ fontWeight: 700, fontSize: 16, color: getSymbolColor(symbol) }}>
+          {symbol}
+        </div>
         {data?.name && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{data.name}{data.industry ? ` · ${data.industry}` : ''}</div>}
       </div>
       {loading ? (
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading - </p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
       ) : error ? (
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>Couldn't load fundamentals for {symbol}.</p>
       ) : (
@@ -1087,9 +1243,9 @@ function FundamentalsCard({ symbol, metrics, metricsLoading, color }: { symbol: 
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
         <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Percentile Scores</div>
         {metricsLoading ? (
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading - </p>
+          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading…</p>
         ) : !metrics || metrics.valuation_score == null ? (
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Not yet scored for {symbol}  -  refreshes daily.</p>
+          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Not yet scored for {symbol} — refreshes daily.</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10 }}>
             <ScoreChip label="Valuation" value={metrics.valuation_score} />
@@ -1103,14 +1259,14 @@ function FundamentalsCard({ symbol, metrics, metricsLoading, color }: { symbol: 
       <EarningsHistory symbol={symbol} />
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
-        Data from Finnhub &middot; Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance â†—</a>
+        Data from Finnhub · Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
       </p>
     </div>
   )
 }
 
-// â”€â”€â”€ Earnings history (last ~4 quarters, â‰ˆ1 year) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Actual vs. estimated EPS per quarter, straight from Finnhub  -  no commentary
+// ─── Earnings history (last ~4 quarters, ≈1 year) ────────────────────────────
+// Actual vs. estimated EPS per quarter, straight from Finnhub — no commentary
 // or scoring layered on top, same informational framing as the News tab.
 interface EarningsQuarter {
   period: string
@@ -1144,10 +1300,10 @@ function EarningsHistory({ symbol }: { symbol: string }) {
   return (
     <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
       <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-        Earnings  -  Last 4 Quarters
+        Earnings — Last 4 Quarters
       </div>
       {loading ? (
-        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading - </p>
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading…</p>
       ) : error ? (
         <p style={{ fontSize: 12, color: 'var(--muted)' }}>Couldn't load earnings history for {symbol}.</p>
       ) : !items || items.length === 0 ? (
@@ -1165,10 +1321,10 @@ function EarningsHistory({ symbol }: { symbol: string }) {
             {items.map(q => (
               <tr key={q.period}>
                 <td style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>Q{q.quarter} {q.year}</td>
-                <td style={{ padding: '4px 8px 4px 0' }}>{q.estimate != null ? `$${q.estimate.toFixed(2)}` : ' - '}</td>
-                <td style={{ padding: '4px 8px 4px 0' }}>{q.actual != null ? `$${q.actual.toFixed(2)}` : ' - '}</td>
+                <td style={{ padding: '4px 8px 4px 0' }}>{q.estimate != null ? `$${q.estimate.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '4px 8px 4px 0' }}>{q.actual != null ? `$${q.actual.toFixed(2)}` : '—'}</td>
                 <td style={{ padding: '4px 8px 4px 0', color: q.surprisePercent == null ? 'var(--muted)' : q.surprisePercent >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                  {q.surprisePercent != null ? `${q.surprisePercent >= 0 ? '+' : ''}${q.surprisePercent.toFixed(1)}%` : ' - '}
+                  {q.surprisePercent != null ? `${q.surprisePercent >= 0 ? '+' : ''}${q.surprisePercent.toFixed(1)}%` : '—'}
                 </td>
               </tr>
             ))}
@@ -1184,24 +1340,23 @@ function ScoreChip({ label, value, note }: { label: string; value: number | null
     <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '8px 10px' }}>
       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 700 }}>
-        {value != null ? value : ' - '}{note ? ` · ${note}` : ''}
+        {value != null ? value : '—'}{note ? ` · ${note}` : ''}
       </div>
     </div>
   )
 }
 
-// â”€â”€â”€ News Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Live headlines for whatever you currently hold  -  straight from Finnhub, no
+// ─── News Tab ─────────────────────────────────────────────────────────────────
+// Live headlines for whatever you currently hold — straight from Finnhub, no
 // commentary or rating layered on top. Purely informational, like the rest of
 // the Pro tabs post-repositioning.
-function NewsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
+function NewsTab({ holdings }: { holdings: Holding[] }) {
   return (
-    <ProTabShell title="News" description="Recent headlines for the companies you hold, refreshed live. Just the news  -  no commentary added.">
+    <ProTabShell title="News" description="Recent headlines for the companies you hold, refreshed live. Just the news — no commentary added.">
       {holdings.length === 0 ? <EmptyState /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gap: 16 }}>
           {holdings.map(h => (
-            <NewsCard key={h.id} symbol={h.symbol} color={colorMap[h.symbol]} />
+            <NewsCard key={h.id} symbol={h.symbol} />
           ))}
         </div>
       )}
@@ -1217,7 +1372,7 @@ interface NewsItem {
   summary: string
 }
 
-function NewsCard({ symbol, color }: { symbol: string; color?: string }) {
+function NewsCard({ symbol }: { symbol: string }) {
   const [items, setItems] = useState<NewsItem[] | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -1239,7 +1394,7 @@ function NewsCard({ symbol, color }: { symbol: string; color?: string }) {
 
     setLoading(true)
     load()
-    // Live refresh  -  headlines can change during market hours; matches the
+    // Live refresh — headlines can change during market hours; matches the
     // cache window on the API route (15 min) so this doesn't hammer Finnhub.
     const interval = setInterval(load, 15 * 60 * 1000)
     return () => { cancelled = true; clearInterval(interval) }
@@ -1255,15 +1410,17 @@ function NewsCard({ symbol, color }: { symbol: string; color?: string }) {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, color }}>{symbol}</div>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, color: getSymbolColor(symbol) }}>
+        {symbol}
+      </div>
       {loading ? (
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading - </p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
       ) : error ? (
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>Couldn't load news for {symbol}.</p>
       ) : !items || items.length === 0 ? (
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>No recent headlines for {symbol}.</p>
       ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: 'grid', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
           {items.map((item, i) => (
             <a
               key={`${item.url}-${i}`}
@@ -1273,49 +1430,80 @@ function NewsCard({ symbol, color }: { symbol: string; color?: string }) {
               style={{ display: 'block', padding: '10px 12px', borderRadius: 6, background: 'var(--bg)', color: 'inherit' }}
             >
               <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 3, lineHeight: 1.35 }}>{item.headline}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.source} &middot; {timeAgo(item.datetime)}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.source} · {timeAgo(item.datetime)}</div>
             </a>
           ))}
         </div>
       )}
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
-        Headlines from Finnhub &middot; Informational only, not commentary on whether to hold or sell.
+        Headlines from Finnhub · Informational only, not commentary on whether to hold or sell.
       </p>
     </div>
   )
 }
 
-// â”€â”€â”€ Stop-loss Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function StopLossTab({ holdings, prices, highs }: { holdings: Holding[]; prices: PriceMap; highs: PriceMap }) {
-  const colorMap = getSymbolColorMap(holdings, prices)
-
-  // Drawdown is measured against each stock's own 52-week high (public market
-  // data), so the figure is a plain fact about the security, not a judgement
-  // about the user's position. The threshold percentage is the user's own.
-  const belowThreshold = holdings.filter(h => {
+// ─── Stop-loss Tab ────────────────────────────────────────────────────────────
+function StopLossTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const withStop = holdings.map(h => {
     const price = prices[h.symbol]
-    const high = highs[h.symbol]
-    if (price == null || high == null || high <= 0) return false
-    return ((high - price) / high) * 100 >= h.trail_pct
-  })
+    const stopPrice = price ? price * (1 - h.trail_pct / 100) : null
+    const triggered = stopPrice != null && h.cost_basis > stopPrice
+    const distancePct = price ? ((price - (stopPrice ?? 0)) / price) * 100 : null
+    return { ...h, price, stopPrice, triggered, distancePct }
+  }).sort((a, b) => (a.distancePct ?? 999) - (b.distancePct ?? 999))
+
+  const triggered = withStop.filter(h => h.triggered)
 
   return (
-    <ProTabShell title="Drawdown Alerts" description="How far each holding has fallen from its own 52-week high, compared against the threshold you set. Informational only  -  no action is implied or recommended.">
-      {belowThreshold.length > 0 && (
-        <Callout type="danger" title={`${belowThreshold.length} position${belowThreshold.length > 1 ? 's' : ''} below your drawdown threshold`}>
-          {belowThreshold.map(h => h.symbol).join(', ')}  -  shown for your awareness, not as an instruction to act.
+    <ProTabShell title="Drawdown Alerts" description="See when a holding is down from its trailing-stop level. Informational only — no action is implied or recommended.">
+      {triggered.length > 0 && (
+        <Callout type="danger" title={`${triggered.length} position${triggered.length > 1 ? 's' : ''} at or below your trailing-stop threshold`}>
+          {triggered.map(h => h.symbol).join(', ')} — shown for your awareness, not as an instruction to act.
         </Callout>
       )}
 
-      <div style={{ marginTop: 16 }}>
-        <DrawdownCardGrid holdings={holdings} prices={prices} highs={highs} colorMap={colorMap} />
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh', marginTop: triggered.length ? 16 : 0 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+              {['Symbol', 'Current Price', 'Trail %', 'Stop Price', 'Distance to Stop', 'Status'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>No holdings to monitor.</td></tr>
+            )}
+            {withStop.map(h => (
+              <tr key={h.id} style={{ borderBottom: '1px solid var(--border)', background: h.triggered ? 'var(--red-tint)' : 'transparent' }}>
+                <td style={{ padding: '12px 16px', fontWeight: 700 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                <td style={{ padding: '12px 16px' }}>{h.price ? `$${h.price.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px' }}>{h.trail_pct}%</td>
+                <td style={{ padding: '12px 16px', fontWeight: 600 }}>{h.stopPrice ? `$${h.stopPrice.toFixed(2)}` : '—'}</td>
+                <td style={{ padding: '12px 16px', color: h.distancePct != null && h.distancePct < 5 ? 'var(--red)' : 'var(--green)' }}>
+                  {h.distancePct != null ? `${h.distancePct.toFixed(1)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 3, letterSpacing: '0.03em', textTransform: 'uppercase',
+                    background: h.triggered ? 'var(--red)' : 'var(--green-tint)',
+                    color: h.triggered ? '#fff' : 'var(--green)',
+                  }}>
+                    {h.triggered ? 'Triggered' : 'Safe'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Watchlist Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Pro-only. Tickers you pick (never shares or cost basis)  -  this is what the
+// ─── Watchlist Tab ────────────────────────────────────────────────────────────
+// Pro-only. Tickers you pick (never shares or cost basis) — this is what the
 // monthly digest email filters down to, separate from what you actually hold
 // in Tracker. See app/api/watchlist and app/api/cron/send-newsletter.
 interface WatchlistItemRow { id: string; symbol: string; created_at: string }
@@ -1364,7 +1552,7 @@ function WatchlistTab() {
   }
 
   return (
-    <ProTabShell title="Watchlist" description="Tickers you want tracked in your monthly digest email  -  not your holdings, just symbols you're following. Filters the same large/mid/small-cap Top 25 rankings every subscriber sees down to your list.">
+    <ProTabShell title="Watchlist" description="Tickers you want tracked in your monthly digest email — not your holdings, just symbols you're following. Filters the same large/mid/small-cap Top 25 rankings every subscriber sees down to your list.">
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           value={newSymbol}
@@ -1380,36 +1568,296 @@ function WatchlistTab() {
       {error && <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 12 }}>{error}</p>}
 
       {loading ? (
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading - </p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</p>
       ) : items.length === 0 ? (
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No symbols yet  -  add tickers you want in your monthly digest.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No symbols yet — add tickers you want in your monthly digest.</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {(() => {
-            const watchlistColorMap: Record<string, string> = {}
-            ;[...items].sort((a, b) => a.symbol.localeCompare(b.symbol)).forEach((item, i) => {
-              watchlistColorMap[item.symbol] = SYMBOL_COLORS[i % SYMBOL_COLORS.length]
-            })
-            return items.map(item => (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: watchlistColorMap[item.symbol] }}>{item.symbol}</span>
-                <button onClick={() => removeSymbol(item.id)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }} aria-label={`Remove ${item.symbol}`}>
-                  &times;
-                </button>
-              </div>
-            ))
-          })()}
+          {items.map(item => (
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: getSymbolColor(item.symbol) }}>{item.symbol}</span>
+              <button onClick={() => removeSymbol(item.id)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: 0 }} aria-label={`Remove ${item.symbol}`}>
+                ×
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 16, lineHeight: 1.6 }}>
-        Up to 25 symbols. This list only controls which rows appear in your monthly email  -  it doesn't affect your Tracker holdings or any other tab. Manage your email delivery preference from account settings.
+        Up to 25 symbols. This list only controls which rows appear in your monthly email — it doesn't affect your Tracker holdings or any other tab. Manage your email delivery preference from account settings.
       </p>
     </ProTabShell>
   )
 }
 
-// â”€â”€â”€ Upgrade Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Benchmark Tab ────────────────────────────────────────────────────────────
+// Compares your holdings' blended trailing price returns against SPY and QQQ
+// (as S&P 500 / NASDAQ proxies) across several windows. This is a snapshot
+// comparison built from the trailing-return fields Finnhub already returns
+// for free (same fields used in the Fundamentals tab's Price Performance
+// section) — not a continuous historical line chart, since that requires
+// daily candle data not included on the current Finnhub plan. Each holding's
+// return is weighted by its current market value; a symbol missing a given
+// window's data is simply excluded from that window's average, not treated
+// as zero.
+const BENCHMARK_SYMBOLS = { sp500: 'SPY', nasdaq: 'QQQ' } as const
+const RETURN_WINDOWS: Array<{ key: 'fiveDay' | 'monthToDate' | 'thirteenWeek' | 'twentySixWeek' | 'fiftyTwoWeek' | 'yearToDate'; label: string }> = [
+  { key: 'fiveDay', label: '1 Week' },
+  { key: 'monthToDate', label: 'Month to Date' },
+  { key: 'thirteenWeek', label: '~3 Months' },
+  { key: 'twentySixWeek', label: '~6 Months' },
+  { key: 'fiftyTwoWeek', label: '1 Year' },
+  { key: 'yearToDate', label: 'Year to Date' },
+]
+
+interface PricePerformance {
+  fiveDay: number | null
+  thirteenWeek: number | null
+  twentySixWeek: number | null
+  fiftyTwoWeek: number | null
+  yearToDate: number | null
+  monthToDate: number | null
+}
+
+function BenchmarkTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
+  const [perf, setPerf] = useState<Record<string, PricePerformance | null>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const symbols = [...new Set([...holdings.map(h => h.symbol), BENCHMARK_SYMBOLS.sp500, BENCHMARK_SYMBOLS.nasdaq])]
+    let cancelled = false
+
+    Promise.all(
+      symbols.map(symbol =>
+        fetch(`/api/finnhub?type=fundamentals&symbol=${symbol}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(res => [symbol, res?.pricePerformance ?? null] as const)
+          .catch(() => [symbol, null] as const)
+      )
+    ).then(results => {
+      if (cancelled) return
+      const next: Record<string, PricePerformance | null> = {}
+      results.forEach(([symbol, p]) => { next[symbol] = p })
+      setPerf(next)
+      setLoading(false)
+    })
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdings])
+
+  if (holdings.length === 0) return <EmptyState />
+
+  const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
+
+  const portfolioReturn = (windowKey: typeof RETURN_WINDOWS[number]['key']): number | null => {
+    let weightedSum = 0
+    let weightUsed = 0
+    for (const h of holdings) {
+      const p = perf[h.symbol]
+      const r = p?.[windowKey]
+      if (r == null) continue
+      const value = (prices[h.symbol] ?? h.cost_basis) * h.shares
+      weightedSum += r * value
+      weightUsed += value
+    }
+    return weightUsed > 0 ? weightedSum / weightUsed : null
+  }
+
+  const fmtPct = (v: number | null) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`)
+  const pctColor = (v: number | null) => (v == null ? 'var(--muted)' : v >= 0 ? 'var(--green)' : 'var(--red)')
+
+  return (
+    <ProTabShell title="Benchmark" description="How your holdings' blended trailing returns compare to the S&P 500 (SPY) and NASDAQ (QQQ) across a few time windows — a snapshot comparison, not a running historical chart, and not a recommendation to change anything.">
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 560 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+              {['Window', 'Your Portfolio', 'S&P 500 (SPY)', 'NASDAQ (QQQ)', 'vs. S&P 500'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {RETURN_WINDOWS.map(w => {
+              const yours = loading ? null : portfolioReturn(w.key)
+              const sp500 = perf[BENCHMARK_SYMBOLS.sp500]?.[w.key] ?? null
+              const nasdaq = perf[BENCHMARK_SYMBOLS.nasdaq]?.[w.key] ?? null
+              const diff = yours != null && sp500 != null ? yours - sp500 : null
+              return (
+                <tr key={w.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{w.label}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 700, color: pctColor(yours) }}>{loading ? '…' : fmtPct(yours)}</td>
+                  <td style={{ padding: '12px 16px', color: pctColor(sp500) }}>{loading ? '…' : fmtPct(sp500)}</td>
+                  <td style={{ padding: '12px 16px', color: pctColor(nasdaq) }}>{loading ? '…' : fmtPct(nasdaq)}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 600, color: pctColor(diff) }}>{loading ? '…' : diff == null ? '—' : `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} pts`}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12 }}>
+        Your portfolio figures are a blend of each holding's own trailing return, weighted by its current value in your account — not a time-weighted return that accounts for when you actually bought in. Total portfolio value used for weighting: ${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}.
+      </p>
+    </ProTabShell>
+  )
+}
+
+
+// Estimated annual income, yield, and 5-year dividend growth rate — all
+// sourced from the same fundamentals call Finnhub already includes on the
+// free tier. (An earlier version also showed actual payment history/dates
+// via /stock/dividend, but that endpoint isn't included on the current
+// Finnhub plan, so it's been removed rather than show "Unavailable" to
+// every user. Revisit if the Finnhub plan is ever upgraded.)
+interface DividendFundamentals {
+  perShareAnnual: number | null
+  yieldTTM: number | null
+  growthRate5Y: number | null
+}
+interface DividendSymbolData {
+  fundamentals: DividendFundamentals | null
+  loading: boolean
+}
+
+function DividendsTab({ holdings, plan, onUpgrade }: { holdings: Holding[]; plan: Plan; onUpgrade: () => void }) {
+  const [data, setData] = useState<Record<string, DividendSymbolData>>({})
+
+  useEffect(() => {
+    const symbols = [...new Set(holdings.map(h => h.symbol))]
+    symbols.forEach(symbol => {
+      if (data[symbol]) return   // already fetched (or in flight)
+      setData(prev => ({ ...prev, [symbol]: { fundamentals: null, loading: true } }))
+
+      fetch(`/api/finnhub?type=fundamentals&symbol=${symbol}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(fundRes => {
+          setData(prev => ({
+            ...prev,
+            [symbol]: {
+              fundamentals: fundRes?.dividends
+                ? { perShareAnnual: fundRes.dividends.perShareAnnual, yieldTTM: fundRes.dividends.yieldTTM, growthRate5Y: fundRes.dividends.growthRate5Y }
+                : null,
+              loading: false,
+            },
+          }))
+        }).catch(() => {
+          setData(prev => ({ ...prev, [symbol]: { fundamentals: null, loading: false } }))
+        })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdings])
+
+  if (holdings.length === 0) return <EmptyState />
+
+  const totalEstAnnualIncome = holdings.reduce((sum, h) => {
+    const perShare = data[h.symbol]?.fundamentals?.perShareAnnual
+    return sum + (perShare ? perShare * h.shares : 0)
+  }, 0)
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4, color: 'var(--accent)' }}>Dividends</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 14 }}>Estimated income for your holdings.</p>
+      </div>
+
+      {/* ── Free: summary + per-holding table ── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontWeight: 500 }}>Estimated Annual Dividend Income</div>
+        <div style={{ fontSize: 22, fontWeight: 700 }}>
+          ${totalEstAnnualIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>
+          Based on current per-share annual dividend rates × your shares held — not a guarantee of future payments.
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh', marginBottom: 20 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 480 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+              {['Symbol', 'Div / Share (annual)', 'Yield', 'Est. Annual Income'].map(h => (
+                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map(h => {
+              const d = data[h.symbol]
+              const perShare = d?.fundamentals?.perShareAnnual ?? null
+              const yieldPct = d?.fundamentals?.yieldTTM ?? null
+              const estIncome = perShare != null ? perShare * h.shares : null
+              return (
+                <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 700 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                  <td style={{ padding: '12px 16px' }}>{d?.loading ? '…' : perShare != null ? `$${perShare.toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '12px 16px' }}>{d?.loading ? '…' : yieldPct != null ? `${yieldPct.toFixed(2)}%` : '—'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{estIncome != null ? `$${estIncome.toFixed(2)}` : '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Pro: 5-year dividend growth rate ── */}
+      <InlineProLock locked={plan === 'free'} label="Dividend Growth Rates" onUpgrade={onUpgrade}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 320 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
+                {['Symbol', '5-Year Dividend Growth'].map(h => (
+                  <th key={h} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--accent)', fontWeight: 500, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map(h => {
+                const growth5Y = data[h.symbol]?.fundamentals?.growthRate5Y ?? null
+                return (
+                  <tr key={h.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700 }}><span style={{ color: getSymbolColor(h.symbol) }}>{h.symbol}</span></td>
+                    <td style={{ padding: '12px 16px' }}>{growth5Y != null ? `${growth5Y.toFixed(1)}%` : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </InlineProLock>
+    </div>
+  )
+}
+
+// Inline (not whole-tab) Pro lock — shows a blurred preview of the section
+// itself with an upgrade card, for tabs like Dividends that have a genuine
+// free tier plus a Pro-only section within the same page.
+function InlineProLock({ locked, label, onUpgrade, children }: { locked: boolean; label: string; onUpgrade: () => void; children: React.ReactNode }) {
+  if (!locked) return <>{children}</>
+  return (
+    <div style={{ position: 'relative', minHeight: 200 }}>
+      <div aria-hidden="true" style={{ filter: 'blur(6px)', opacity: 0.85, pointerEvents: 'none', userSelect: 'none' }}>
+        {children}
+      </div>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 0%, var(--bg) 65%)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 20 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 26px', textAlign: 'center', maxWidth: 340, boxShadow: '0 8px 28px rgba(0,0,0,.14)' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>🔒 {label} is a Pro feature</div>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+            Upgrade to see dividend growth trends for every holding.
+          </p>
+          <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>
+            Upgrade to Pro →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState<string | null>(null)
 
@@ -1417,7 +1865,7 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
     setLoading(plan)
     const res = await fetch(`/api/stripe/checkout?plan=${plan}`)
     // When checkout is paused, the route redirects to /pricing?paused=1
-    // (an HTML page) instead of returning JSON  -  follow that redirect
+    // (an HTML page) instead of returning JSON — follow that redirect
     // directly rather than trying to parse it as checkout session JSON.
     if (!res.headers.get('content-type')?.includes('application/json')) {
       window.location.href = res.url
@@ -1431,12 +1879,12 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '36px 32px', width: '100%', maxWidth: 500, position: 'relative' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'transparent', color: 'var(--muted)', fontSize: 22, padding: '0 6px', lineHeight: 1 }}>&times;</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'transparent', color: 'var(--muted)', fontSize: 22, padding: '0 6px', lineHeight: 1 }}>×</button>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>âœ¦</div>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>✦</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Upgrade to Pro</h2>
           <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
-            Unlock more than 10 holdings, full Fundamentals data,<br />Industry Concentration, Allocation Notes, and Watchlist.
+            Unlock unlimited holdings, all Pro tabs, valuation signals,<br />allocation views, and advanced analytics.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
@@ -1444,21 +1892,21 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
           <PlanButton label="Annual" price="$79 / year" badge="Save 27%" onClick={() => startCheckout('annual')} loading={loading === 'annual'} />
         </div>
         <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
-          Secure payment via Stripe &middot; Cancel anytime
+          Secure payment via Stripe · Cancel anytime
         </p>
 
         {/* Solo-founder trust block. Kept to claims we can stand behind:
             no ad sales and no broker kickbacks are true today. Deliberately
-            not claiming "we harvest no user data"  -  there's no privacy
+            not claiming "we harvest no user data" — there's no privacy
             policy live yet to back that up. Links to the existing
             attorney-drafted disclaimer instead of writing new regulatory
             language here. */}
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 16, textAlign: 'center' }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 380, margin: '0 auto' }}>
-            Ownfolio is built and run by a solo founder. Your subscription funds the market-data feeds and the engineering  -  not ad sales, and not broker referral kickbacks.
+            Ownfolio is built and run by a solo founder. Your subscription funds the market-data feeds and the engineering — not ad sales, and not broker referral kickbacks.
           </p>
           <a href="/disclaimer" style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'underline', marginTop: 8, display: 'inline-block' }}>
-            Data &amp; Analytics  -  Not Advice
+            Data &amp; Analytics — Not Advice
           </a>
         </div>
       </div>
@@ -1471,12 +1919,12 @@ function PlanButton({ label, price, badge, onClick, loading }: { label: string; 
     <button className="btn-primary" onClick={onClick} disabled={loading} style={{ flex: 1, padding: '16px 0', fontSize: 15, position: 'relative', minWidth: 180 }}>
       {badge && <span style={{ position: 'absolute', top: -10, right: 10, background: 'var(--yellow)', color: '#000', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 800 }}>{badge}</span>}
       <div style={{ fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 400, marginTop: 2, opacity: 0.85 }}>{loading ? 'Redirecting - ' : price}</div>
+      <div style={{ fontSize: 13, fontWeight: 400, marginTop: 2, opacity: 0.85 }}>{loading ? 'Redirecting…' : price}</div>
     </button>
   )
 }
 
-// â”€â”€â”€ Locked Tab Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Locked Tab Preview ────────────────────────────────────────────────────────
 // For free users, renders the REAL tab content (their own holdings/data)
 // blurred out, with an Upgrade CTA card overlaid. Lets people see there's
 // something real behind the paywall instead of just hitting a blank wall.
@@ -1519,12 +1967,12 @@ function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: bo
             boxShadow: '0 8px 28px rgba(0,0,0,.14)',
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>ðŸ”’ {tabName} is a Pro feature</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>🔒 {tabName} is a Pro feature</div>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
             That's a live preview using your own holdings. Upgrade to unlock {tabName} and every other Pro tab.
           </p>
           <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 13, padding: '9px 20px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>
-            Upgrade to Pro â†’
+            Upgrade to Pro →
           </button>
         </div>
       </div>
@@ -1532,36 +1980,12 @@ function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: bo
   )
 }
 
-// â”€â”€â”€ Inline Pro Upsell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Compact version of the upgrade prompt, used *inside* an otherwise-free tab
-// to gate just one advanced section (e.g. Industry Concentration, Allocation
-// Notes) rather than blurring the whole tab. No fake/blurred data here since
-// there's nothing rendered underneath to preview  -  just an honest, small
-// upsell card in place of the section.
-function InlineProUpsell({ label, description, onUpgrade }: { label: string; description: string; onUpgrade: () => void }) {
-  return (
-    <div style={{
-      background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 8,
-      padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      gap: 16, flexWrap: 'wrap',
-    }}>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>ðŸ”’ {label}  -  Pro feature</div>
-        <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{description}</div>
-      </div>
-      <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 12.5, padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-        Upgrade to Pro â†’
-      </button>
-    </div>
-  )
-}
-
-// â”€â”€â”€ Shared UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared UI helpers ────────────────────────────────────────────────────────
 function ProTabShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{title}</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4, color: 'var(--accent)' }}>{title}</h2>
         <p style={{ color: 'var(--muted)', fontSize: 14 }}>{description}</p>
       </div>
       {children}
@@ -1588,12 +2012,3 @@ function Callout({ type, title, children }: { type: 'warning' | 'info' | 'danger
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
