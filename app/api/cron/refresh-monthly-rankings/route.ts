@@ -55,6 +55,11 @@ const CURATED_UNIVERSE = [
   
   'TXT', 'CR', 'ITT', 'ATKR', 'CIR', 'ROLL',
   'CRK', 'SM', 'MTDR',
+
+  'PRO', 'EGHT', 'NABL', 'DGII', 'MITK', 'CCSI', 'OSPN', 'KLTR', 'EVCM', 'APPN',
+  'IRWD', 'ARQT', 'CDNA', 'NRIX', 'KURA', 'IOVA', 'ORIC', 'SRRK', 'ARDX', 'ANAB',
+  'ZUMZ', 'DENN', 'PTLO', 'JACK', 'HZO', 'LOVE',
+  'MYE', 'THR',
 ]
 
 type CapTier = 'large' | 'mid' | 'small'
@@ -151,7 +156,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const withTier = raw.map(r => ({ ...r, tier: classifyTier(r.marketCapM) }))
+  const listingCheck = await fetchListedUsSymbols(key)
+  if (!listingCheck.usable) {
+    await sendFailureAlert('refresh-monthly-rankings', `Listing check unusable (${listingCheck.reason}). Proceeding WITHOUT the delisting filter.`)
+  } else {
+    const delisted = findDelisted(CURATED_UNIVERSE, listingCheck)
+    if (delisted.length > 0) {
+      console.warn(`[listing check] delisted: ${delisted.join(', ')}`)
+      await sendFailureAlert('refresh-monthly-rankings', `Delisted symbols excluded: ${delisted.join(', ')}. Remove them from CURATED_UNIVERSE.`)
+    }
+  }
+
+  const live = filterToListed(raw, listingCheck)
+
+  const withTier = live.map(r => ({ ...r, tier: classifyTier(r.marketCapM) }))
   const scorable = withTier.filter(r => r.tier != null && r.trailingReturn1y != null)
 
   const periodLabel = new Date().toISOString().slice(0, 7)
