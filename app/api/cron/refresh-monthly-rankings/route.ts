@@ -5,7 +5,7 @@ import { sendFailureAlert } from '@/lib/email/alerts'
 import { fetchListedUsSymbols, findDelisted, filterToListed } from '@/lib/listing-status'
 import type { NextRequest } from 'next/server'
 
-export const maxDuration = 480
+export const maxDuration = 800
 export const dynamic = 'force-dynamic'
 
 const METHODOLOGY_VERSION = 'v2-tiered'
