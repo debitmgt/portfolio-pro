@@ -1,7 +1,8 @@
-﻿// app/api/cron/refresh-monthly-rankings/route.ts
+// app/api/cron/refresh-monthly-rankings/route.ts
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendFailureAlert } from '@/lib/email/alerts'
+import { fetchListedUsSymbols, findDelisted, filterToListed } from '@/lib/listing-status'
 import type { NextRequest } from 'next/server'
 
 export const maxDuration = 480
@@ -35,25 +36,25 @@ const CURATED_UNIVERSE = [
   'T', 'VZ', 'TMUS',
 
   'DOCU', 'TWLO', 'HUBS', 'BOX', 'PCOR', 'ESTC', 'FROG', 'PATH', 'BILL',
-  'PAYC', 'MDB', 'DDOG', 'GTLB', 'CFLT', 'FRSH', 'APPF', 'BLKB', 'PCTY',
-  'GWRE', 'SPT', 'DBX', 'SMAR', 'NCNO', 'DV',
+  'PAYC', 'MDB', 'DDOG', 'GTLB', 'FRSH', 'APPF', 'BLKB', 'PCTY',
+  'GWRE', 'SPT', 'DBX', 'NCNO', 'DV',
   'DECK', 'ULTA', 'FIVE', 'YETI', 'RH', 'WSM', 'CHWY', 'ETSY', 'W', 'TXRH',
   'CROX', 'LEVI', 'BURL', 'CAKE', 'WING', 'SHAK', 'DPZ', 'BJRI',
 
-  'PODD', 'TDOC', 'EXAS', 'NBIX', 'HALO', 'RARE', 'SRPT', 'ALNY', 'BMRN', 'JAZZ',
+  'PODD', 'TDOC', 'NBIX', 'HALO', 'RARE', 'SRPT', 'ALNY', 'BMRN', 'JAZZ',
   'INSP', 'PEN', 'TNDM', 'GMED', 'NEOG', 'OMCL',
   'SEIC', 'EVR', 'PJT', 'JEF', 'RJF', 'CBOE',
   'AAON', 'WMS', 'ROAD', 'MLI', 'RRX',
 
-  'JANX', 'ARWR', 'FOLD', 'KRYS', 'VERV', 'BEAM', 'NTLA', 'EDIT', 'CRSP',
+  'JANX', 'ARWR', 'KRYS', 'BEAM', 'NTLA', 'EDIT', 'CRSP',
   'RXRX', 'RCUS', 'DNLI', 'MIRM', 'PCVX', 'ACAD',
-  'YEXT', 'PRGS', 'SPSC', 'QLYS', 'VRNT', 'BAND', 'ASAN', 'PRO',
+  'YEXT', 'PRGS', 'SPSC', 'QLYS', 'BAND', 'ASAN', 
   'AMPL', 'DOMO', 'BIGC',
 
-  'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CATO', 'CONN', 'HIBB', 'SCVL',
-  'GES', 'CHS',
-  'TXT', 'CR', 'ITT', 'ATKR', 'CIR', 'HI', 'ROLL',
-  'CRK', 'SM', 'CIVI', 'MTDR',
+  'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CATO', 'SCVL',
+  
+  'TXT', 'CR', 'ITT', 'ATKR', 'CIR', 'ROLL',
+  'CRK', 'SM', 'MTDR',
 ]
 
 type CapTier = 'large' | 'mid' | 'small'
