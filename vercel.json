@@ -10,7 +10,7 @@
       "maxDuration": 60
     },
     "app/api/cron/refresh-monthly-rankings/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 800
     },
     "app/api/cron/send-newsletter/route.ts": {
       "maxDuration": 120
