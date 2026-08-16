@@ -18,7 +18,16 @@ export default function RankingsVideoHero() {
   const [videos, setVideos] = useState<RankingVideo[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  // Starts muted — browsers block autoplay-with-sound outright, and even
+  // where it's technically allowed it's a bad surprise on a page nobody
+  // asked to make noise. This is React state (not just the video's own
+  // `muted` attribute) so a click can flip it, and so the choice survives
+  // the video element remounting every time the carousel switches tiers
+  // (see `key={currentVideo.url}` below).
+  const [muted, setMuted] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  const toggleMuted = () => setMuted(m => !m)
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -120,8 +129,9 @@ export default function RankingsVideoHero() {
           ref={videoRef}
           key={currentVideo.url}
           autoPlay
-          muted
+          muted={muted}
           loop
+          playsInline
           style={{
             position: 'absolute',
             top: 0,
@@ -133,6 +143,46 @@ export default function RankingsVideoHero() {
         >
           <source src={currentVideo.url} type="video/mp4" />
         </video>
+
+        {/* Mute/unmute toggle. Not every clip has narration yet (older
+            renders and any that failed ElevenLabs synthesis fall back to
+            silent) — the button is always shown rather than trying to
+            detect that, since clicking it on a silent clip is harmless. */}
+        <button
+          onClick={toggleMuted}
+          aria-label={muted ? 'Unmute video' : 'Mute video'}
+          aria-pressed={!muted}
+          style={{
+            position: 'absolute',
+            bottom: 14,
+            right: 14,
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'rgba(20,22,28,0.6)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0,
+            zIndex: 2,
+          }}
+        >
+          {muted ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="#fff" stroke="none" />
+              <line x1="23" y1="9" x2="17" y2="15" />
+              <line x1="17" y1="9" x2="23" y2="15" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="#fff" stroke="none" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+          )}
+        </button>
       </div>
 
       <div className="rvh-panel" style={{
