@@ -248,7 +248,7 @@ export default function RankingsVideoHero() {
           el.style.transform = 'translateY(0)'
           el.style.boxShadow = '0 4px 16px rgba(255,106,0,.3)'
         }}>
-          Join Pro to See All Rankings
+          Join Pro to See All Product Features
         </Link>
 
         {/* Tier indicators */}
