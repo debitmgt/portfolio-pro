@@ -158,9 +158,11 @@ export default function GatedIssueView({
 
       <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6, marginTop: 24 }}>
         Ranked by trailing 1-year price return, computed identically for every
-        tracked symbol from public market data. All figures are historical
-        performance only — not tailored to any individual and not a signal to act
-        now. Not financial advice.
+        tracked symbol from public market data. AI helps gather and process
+        that data, but the ranking itself isn&apos;t AI-picked — it&apos;s a
+        straight calculation, run the same way every month. All figures are
+        historical performance only — not tailored to any individual and not
+        a signal to act now. Not financial advice.
       </p>
     </div>
   )

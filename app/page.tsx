@@ -97,9 +97,13 @@ export default async function Home() {
             )}
             <h1>Ranks 2 through 24 are behind a free account.</h1>
             <p className="ofh-lede">
-              Every month Ownfolio ranks the 25 highest trailing 1-year returns in
-              each market cap tier — large, mid, and small. The list is free. It
-              just requires an account.
+              Every month Ownfolio ranks the top 25 highest trailing 1-year
+              returns in each market cap tier — large, mid, and small — using
+              the same calculation for every stock. AI helps gather and
+              process the underlying market data, but the ranking itself
+              isn&apos;t AI-picked — it&apos;s a straight calculation, run the
+              same way every month. The list is free. It just requires an
+              account.
             </p>
             <div className="ofh-hero-cta">
               <a className="ofh-btn ofh-btn-primary ofh-btn-lg" href={SIGNUP}>
