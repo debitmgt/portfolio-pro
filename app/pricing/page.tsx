@@ -183,12 +183,12 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               {
                 n: '03',
                 title: 'Go deeper, for free',
-                body: 'Returns, position status, allocation, concentration, charts, news, and drawdown alerts — all included on the free plan, no card required.',
+                body: 'Returns, position status, allocation, concentration, charts, news, and drawdown alerts — plus the full monthly Top 25 rankings across all three cap tiers, as a bonus. All included on the free plan, no card required.',
               },
               {
                 n: '04',
                 title: 'Add Pro when you\u2019re ready',
-                body: 'Full fundamentals data with daily percentile scoring, per-holding and portfolio beta, industry breakdowns, and the monthly ranking newsletter.',
+                body: 'Full fundamentals data with daily percentile scoring, per-holding and portfolio beta, industry breakdowns, and a Watchlist for names you don’t own yet.',
               },
             ].map(step => (
               <div key={step.n}>
@@ -228,6 +228,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
                 'Charts',
                 'News',
                 'Drawdown Alerts',
+                'Bonus: monthly Top 25 rankings (all 3 cap tiers)',
               ].map(item => (
                 <li key={item} style={{ fontSize: 13.5, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
                   <span style={{ color: 'var(--green)', marginTop: 1, flexShrink: 0 }}>✓</span>
@@ -248,7 +249,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
                 'Risk (per-holding and portfolio beta)',
                 'Industry Concentration breakdown',
                 'Allocation Notes',
-                'Watchlist & monthly ranking newsletter',
+                'Watchlist',
               ].map(item => (
                 <li key={item} style={{ fontSize: 13.5, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
                   <span style={{ color: 'var(--accent)', marginTop: 1, flexShrink: 0 }}>✓</span>

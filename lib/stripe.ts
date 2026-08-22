@@ -23,12 +23,11 @@ export const PLANS = {
     price: 0,
     holdingsLimit: 10,
     features: [
-      'Up to 10 holdings',
+      'Portfolio tracker — up to 10 holdings',
       'Live prices (30s refresh)',
-      'Portfolio tracker',
       'Gain/loss calculations',
-      'Trail stop display',
-      'Monthly Top 25 newsletter (no account needed)',
+      'Trailing stop display',
+      'Bonus: monthly Top 25 rankings, all three cap tiers',
     ],
   },
   monthly: {
