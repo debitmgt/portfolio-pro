@@ -3,17 +3,31 @@
 import { useState } from 'react'
 
 // Static feature-tour clip for the homepage — unlike RankingsVideoHero this
-// isn't fetched from Supabase and doesn't rotate; it's one fixed asset
-// (public/videos/feature-tour.mp4) that only changes when someone re-exports
-// and replaces the file. Portrait (9:16) source, so the box uses aspectRatio
-// instead of RankingsVideoHero's 16:9 padding-bottom trick — a landscape box
-// was tried and rejected (Aug 22, 2026) because it pillarboxes this portrait
-// clip with wide black bars on desktop; the portrait card fills its frame
-// with no dead space.
+// doesn't rotate, it's one fixed clip. Hosted on Supabase Storage (the
+// "site-assets" bucket — see scripts/upload-feature-tour-video.mjs), NOT in
+// public/: public/*.mp4 is gitignored repo-wide on purpose (video files
+// don't belong in git history), so a file placed in public/videos/ locally
+// would silently fail to deploy — `git add` skips it, Vercel never sees it,
+// and the <video> tag 404s in production even though it works fine in local
+// dev. Learned this the hard way (Aug 22, 2026) after the video didn't show
+// up live post-deploy. The poster JPG is small enough to just live in
+// public/ normally (git-tracked, not covered by the *.mp4 rule).
+//
+// Portrait (9:16) source, so the box uses aspectRatio instead of
+// RankingsVideoHero's 16:9 padding-bottom trick — a landscape box was tried
+// and rejected (Aug 22, 2026) because it pillarboxes this portrait clip with
+// wide black bars on desktop; the portrait card fills its frame with no
+// dead space.
+//
+// The poster JPG stays local (public/videos/feature-tour-poster.jpg) — it's
+// 22KB, git-tracked fine (only *.mp4 is gitignored), and already deployed
+// successfully. Only the video itself needs the Supabase URL.
 //
 // Autoplay-muted-with-a-toggle mirrors RankingsVideoHero's approach (see that
 // file's comments): browsers block autoplay-with-sound outright, and even
 // where allowed it's a bad surprise on a page nobody asked to make noise.
+const VIDEO_SRC = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/site-assets/feature-tour.mp4`
+
 export default function FeatureTourVideo() {
   const [muted, setMuted] = useState(true)
   const toggleMuted = () => setMuted(m => !m)
@@ -39,7 +53,7 @@ export default function FeatureTourVideo() {
         poster="/videos/feature-tour-poster.jpg"
         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
       >
-        <source src="/videos/feature-tour.mp4" type="video/mp4" />
+        <source src={VIDEO_SRC} type="video/mp4" />
       </video>
 
       <button
