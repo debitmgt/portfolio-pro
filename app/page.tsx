@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 import HomeLedger, { PRICING, type TeaserTier } from './HomeLedger'
+import FeatureTourVideo from '@/components/FeatureTourVideo'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,26 @@ export default async function Home() {
           <HomeLedger teaser={teaser} monthLabel={monthLabel} />
         </div>
       </header>
+
+      {/* ---------------- feature tour video ---------------- */}
+      {/* Reuses the hero's two-column grid (ofh-hero-grid) instead of
+          centering the portrait video card alone in a full-width section —
+          a centered 340px card left wide bands of empty space on either
+          side on desktop. Text fills the other column instead. */}
+      <section id="tour">
+        <div className="ofh-wrap ofh-hero-grid">
+          <div>
+            <h2>See it in action</h2>
+            <p className="ofh-lede">
+              A quick look at tracking your own holdings inside Ownfolio —
+              add what you own, watch it update live, and see how your
+              actual allocation compares to the targets you set.
+            </p>
+          </div>
+
+          <FeatureTourVideo />
+        </div>
+      </section>
 
       {/* ---------------- what free gets ---------------- */}
       <section id="rankings">
