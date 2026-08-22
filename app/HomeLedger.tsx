@@ -5,6 +5,9 @@ import { useState } from 'react'
 // so the server page can import it without dragging server-only modules
 // (createServerClient / next/headers) into the browser bundle.
 export const SIGNUP = '/auth/login?mode=signup'
+// Homepage CTAs route here instead of straight to SIGNUP (as of Aug 22, 2026) —
+// send visitors through pricing first rather than straight into account creation.
+export const PRICING = '/pricing'
 
 export type TeaserRow = {
   rank: number
@@ -113,7 +116,7 @@ export default function HomeLedger({
 
       <div className="ofl-gate">
         <p>Ranks 2–24 unlock the moment you create an account.</p>
-        <a className="ofh-btn ofh-btn-primary" href={SIGNUP}>Show me the full list</a>
+        <a className="ofh-btn ofh-btn-primary" href={PRICING}>See pricing</a>
         <p className="ofl-gate-fine">Free · includes all three cap tiers</p>
       </div>
     </div>

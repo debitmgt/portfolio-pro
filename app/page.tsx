@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
-import HomeLedger, { SIGNUP, type TeaserTier } from './HomeLedger'
+import HomeLedger, { PRICING, type TeaserTier } from './HomeLedger'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,7 +83,7 @@ export default async function Home() {
           </div>
           <div className="ofh-nav-cta">
             <a className="ofh-btn ofh-btn-quiet" href="/auth/login">Sign in</a>
-            <a className="ofh-btn ofh-btn-primary" href={SIGNUP}>Create free account</a>
+            <a className="ofh-btn ofh-btn-primary" href={PRICING}>See pricing</a>
           </div>
         </div>
       </nav>
@@ -106,8 +106,8 @@ export default async function Home() {
               account.
             </p>
             <div className="ofh-hero-cta">
-              <a className="ofh-btn ofh-btn-primary ofh-btn-lg" href={SIGNUP}>
-                Create free account
+              <a className="ofh-btn ofh-btn-primary ofh-btn-lg" href={PRICING}>
+                See pricing
               </a>
             </div>
             <p className="ofh-fine">No card required · Email address only · Cancel any time</p>
@@ -181,10 +181,10 @@ export default async function Home() {
         <div className="ofh-wrap">
           <h2>The next list publishes on the 1st.</h2>
           <p className="ofh-lede ofh-center">
-            Create the free account now and it lands in your account the morning it&apos;s out.
+            See pricing now, so you&apos;re ready the morning the next list goes out.
           </p>
-          <a className="ofh-btn ofh-btn-primary ofh-btn-lg" href={SIGNUP}>
-            Create free account
+          <a className="ofh-btn ofh-btn-primary ofh-btn-lg" href={PRICING}>
+            See pricing
           </a>
         </div>
       </section>
