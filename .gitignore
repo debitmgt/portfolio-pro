@@ -51,3 +51,5 @@ Voice ID.zip
 
 # secrets, never commit
 CRON.txt
+
+.env.vercel-check

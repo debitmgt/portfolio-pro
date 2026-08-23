@@ -61,6 +61,9 @@ export function HoldingsCardGrid({
     const copy = [...holdings]
     if (sortBy === 'gain') {
       return copy.sort((a, b) => {
+        // Holdings with no real cost basis have no meaningful return, so they
+        // sink to the bottom rather than sorting on a placeholder figure.
+        if (a.cost_basis_auto !== b.cost_basis_auto) return a.cost_basis_auto ? 1 : -1
         const aGain = ((prices[a.symbol] || a.cost_basis) - a.cost_basis) / a.cost_basis
         const bGain = ((prices[b.symbol] || b.cost_basis) - b.cost_basis) / b.cost_basis
         return bGain - aGain
@@ -69,7 +72,7 @@ export function HoldingsCardGrid({
     if (sortBy === 'value') {
       return copy.sort((a, b) => {
         const aValue = (prices[a.symbol] || a.cost_basis) * a.shares
-        const bValue = (prices[b.symbol] || b.cost_basis) * a.shares
+        const bValue = (prices[b.symbol] || b.cost_basis) * b.shares
         return bValue - aValue
       })
     }
@@ -112,6 +115,12 @@ export function HoldingsCardGrid({
           const positionPct = (positionGain / (h.cost_basis * h.shares)) * 100
           const isGain = positionGain >= 0
 
+          // cost_basis_auto means the figure stored is today's market price
+          // standing in for a number the user never gave us. Showing a return
+          // off it would be inventing performance, so this card shows the
+          // position size and a prompt instead of a gain/loss.
+          const noCost = h.cost_basis_auto === true
+
           const trailTarget = currentPrice * (1 - h.trail_pct / 100)
 
           return (
@@ -145,24 +154,50 @@ export function HoldingsCardGrid({
                 </div>
               </div>
 
-              {/* Large gain/loss % */}
-              <div style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: isGain ? 'var(--green)' : 'var(--red)',
-                lineHeight: 1,
-              }}>
-                {isGain ? '+' : ''}{positionPct.toFixed(1)}%
-              </div>
+              {/* Large gain/loss %, or the prompt when there's no real cost basis */}
+              {noCost ? (
+                <>
+                  <div style={{
+                    display: 'inline-block', alignSelf: 'flex-start',
+                    fontSize: 10.5, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+                    color: 'var(--yellow)', background: 'var(--yellow-tint)',
+                    border: '1px solid var(--yellow)', borderRadius: 3, padding: '3px 8px',
+                  }}>
+                    Cost basis not set
+                  </div>
+                  <button
+                    onClick={() => onStartEdit(h)}
+                    style={{
+                      background: 'transparent', border: 'none', padding: 0, textAlign: 'left',
+                      fontSize: 12, color: 'var(--accent)', textDecoration: 'underline',
+                    }}
+                  >
+                    Add what you paid
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    fontSize: 26,
+                    fontWeight: 700,
+                    color: isGain ? 'var(--green)' : 'var(--red)',
+                    lineHeight: 1,
+                  }}>
+                    {isGain ? '+' : ''}{positionPct.toFixed(1)}%
+                  </div>
 
-              {/* Sparkline */}
-              <AreaSparkline costBasis={h.cost_basis} currentPrice={currentPrice} isGain={isGain} />
+                  {/* Sparkline */}
+                  <AreaSparkline costBasis={h.cost_basis} currentPrice={currentPrice} isGain={isGain} />
+                </>
+              )}
 
               {/* Details grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: 'var(--muted)' }}>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Cost / Share</div>
-                  <div style={{ fontWeight: 600, color: 'var(--text)' }}>${h.cost_basis.toFixed(2)}</div>
+                  <div style={{ fontWeight: 600, color: noCost ? 'var(--muted)' : 'var(--text)' }}>
+                    {noCost ? 'Not set' : `$${h.cost_basis.toFixed(2)}`}
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Current Price</div>
@@ -174,8 +209,8 @@ export function HoldingsCardGrid({
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Gain / Loss</div>
-                  <div style={{ fontWeight: 600, color: isGain ? 'var(--green)' : 'var(--red)' }}>
-                    {isGain ? '+' : ''}${positionGain.toFixed(2)}
+                  <div style={{ fontWeight: 600, color: noCost ? 'var(--muted)' : isGain ? 'var(--green)' : 'var(--red)' }}>
+                    {noCost ? '—' : `${isGain ? '+' : ''}$${positionGain.toFixed(2)}`}
                   </div>
                 </div>
               </div>

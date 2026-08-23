@@ -53,9 +53,13 @@ export function ReturnsCardGrid({
     return [...holdings]
       .map(h => {
         const price = prices[h.symbol]
-        const gain = price ? (price - h.cost_basis) / h.cost_basis * 100 : null
+        // A placeholder cost basis (today's price, stored because the user
+        // left the field blank) can't produce a real return. Treat it the same
+        // as a missing price: no figure, and sorted to the bottom.
+        const noCost = h.cost_basis_auto === true
+        const gain = !noCost && price ? (price - h.cost_basis) / h.cost_basis * 100 : null
         const value = price ? price * h.shares : h.cost_basis * h.shares
-        return { ...h, price, gain, value }
+        return { ...h, price, gain, value, noCost }
       })
       .sort((a, b) => (b.gain ?? -Infinity) - (a.gain ?? -Infinity))
   }, [holdings, prices])
@@ -123,13 +127,31 @@ export function ReturnsCardGrid({
               </div>
             </div>
 
-            {/* Large return % */}
-            <div style={{ fontSize: 26, fontWeight: 700, color: gainColor, lineHeight: 1 }}>
-              {h.gain != null ? `${h.gain >= 0 ? '+' : ''}${h.gain.toFixed(2)}%` : '—'}
-            </div>
+            {/* Large return %, or a prompt when there's no real cost basis */}
+            {h.noCost ? (
+              <>
+                <div style={{
+                  display: 'inline-block', alignSelf: 'flex-start',
+                  fontSize: 10.5, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+                  color: 'var(--yellow)', background: 'var(--yellow-tint)',
+                  border: '1px solid var(--yellow)', borderRadius: 3, padding: '3px 8px',
+                }}>
+                  Cost basis not set
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                  Add what you paid in the Tracker tab to see a return here.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 26, fontWeight: 700, color: gainColor, lineHeight: 1 }}>
+                  {h.gain != null ? `${h.gain >= 0 ? '+' : ''}${h.gain.toFixed(2)}%` : '—'}
+                </div>
 
-            {/* Sparkline */}
-            <AreaSparkline costBasis={h.cost_basis} currentPrice={currentPrice} isGain={isGain} />
+                {/* Sparkline */}
+                <AreaSparkline costBasis={h.cost_basis} currentPrice={currentPrice} isGain={isGain} />
+              </>
+            )}
 
             {/* Details grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
@@ -139,7 +161,9 @@ export function ReturnsCardGrid({
               </div>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Cost Basis</div>
-                <div style={{ fontWeight: 600, color: 'var(--text)' }}>${h.cost_basis.toFixed(2)}</div>
+                <div style={{ fontWeight: 600, color: h.noCost ? 'var(--muted)' : 'var(--text)' }}>
+                  {h.noCost ? 'Not set' : `$${h.cost_basis.toFixed(2)}`}
+                </div>
               </div>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Market Value</div>

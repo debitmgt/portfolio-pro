@@ -17,6 +17,35 @@ import { AllocationPie, GainLossBar } from '@/components/PortfolioCharts'
 
 const FREE_LIMIT = 10
 
+// Sample data for the empty dashboard. A brand-new account has no holdings,
+// which meant every tab rendered an empty placeholder and a first-time visitor
+// never saw what the product actually does. This lets them fill the dashboard
+// in one click, look around, then clear it and enter their own positions.
+//
+// These are illustrative example figures only - fabricated share counts and
+// cost bases attached to well-known symbols purely so the calculations have
+// something to display. They are never written to the database, never touch a
+// user's real holdings, and are not a portfolio, a suggestion, or a
+// recommendation to buy or hold anything. Labelled as sample data on screen
+// wherever they appear.
+const SAMPLE_HOLDINGS: Holding[] = [
+  { symbol: 'AAPL', shares: 25, cost_basis: 180.00, trail_pct: 20 },
+  { symbol: 'MSFT', shares: 15, cost_basis: 340.00, trail_pct: 20 },
+  { symbol: 'NVDA', shares: 30, cost_basis: 95.00,  trail_pct: 20 },
+  { symbol: 'JNJ',  shares: 40, cost_basis: 155.00, trail_pct: 20 },
+  { symbol: 'JPM',  shares: 25, cost_basis: 190.00, trail_pct: 20 },
+  { symbol: 'XOM',  shares: 50, cost_basis: 108.00, trail_pct: 20 },
+  { symbol: 'PG',   shares: 30, cost_basis: 152.00, trail_pct: 20 },
+  { symbol: 'KO',   shares: 60, cost_basis: 60.00,  trail_pct: 20 },
+].map((h, i) => ({
+  ...h,
+  id: `sample-${i}`,
+  user_id: 'sample',
+  cost_basis_auto: false,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+})) as Holding[]
+
 const ALL_TABS = ['Tracker', 'My Returns', 'Fundamentals', 'Charts', 'Allocation View', 'News', 'Position Status', 'Concentration', 'Drawdown Alerts', 'Risk', 'Watchlist']
 
 // Only these two remain fully gated behind Pro (blurred-preview treatment).
@@ -40,7 +69,15 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   const params = useSearchParams()
   const supabase = createClient()
 
-  const [holdings, setHoldings] = useState<Holding[]>(initialHoldings)
+  const [realHoldings, setHoldings] = useState<Holding[]>(initialHoldings)
+
+  // When on, every tab reads from SAMPLE_HOLDINGS instead of the user's own
+  // rows. Purely a client-side view swap - nothing is saved, and the user's
+  // real holdings (usually none, since this is aimed at brand-new accounts)
+  // are untouched underneath.
+  const [sampleMode, setSampleMode] = useState(false)
+  const holdings = sampleMode ? SAMPLE_HOLDINGS : realHoldings
+
   const [prices, setPrices] = useState<PriceMap>({})
   const [highs, setHighs] = useState<PriceMap>({})
   const [activeTab, setActiveTab] = useState('Tracker')
@@ -71,7 +108,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     }
   }, [params, router])
 
-  // â”€â”€â”€ Fetch live prices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Fetch live prices ────────────────────────────────────────────────────
   const fetchPrices = useCallback(async (syms: string[]) => {
     if (!syms.length) return
     setPriceLoading(true)
@@ -109,21 +146,47 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     return () => clearInterval(interval)
   }, [holdings, fetchPrices, fetchHighs])
 
-  // â”€â”€â”€ Add holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Add holding ──────────────────────────────────────────────────────────
   async function addHolding() {
     setFormError('')
-    if (!newSymbol || !newShares || !newCost) { setFormError('All fields required'); return }
+    if (!newSymbol || !newShares) { setFormError('Ticker symbol and shares are required'); return }
     if (isNaN(Number(newShares)) || Number(newShares) <= 0) { setFormError('Shares must be a positive number'); return }
-    if (isNaN(Number(newCost)) || Number(newCost) <= 0) { setFormError('Cost basis must be a positive number'); return }
+
+    const costEntered = newCost.trim() !== ''
+    if (costEntered && (isNaN(Number(newCost)) || Number(newCost) <= 0)) {
+      setFormError('Cost basis must be a positive number'); return
+    }
     setSaving(true)
+
+    // Cost basis left blank: stand in today's market price and flag the row as
+    // a placeholder. The number has to be *something* because the column is
+    // NOT NULL, but the flag stops any view from presenting it as a real
+    // return the person earned.
+    let costBasis = Number(newCost)
+    if (!costEntered) {
+      const sym = newSymbol.toUpperCase().trim()
+      try {
+        const pr = await fetch(`/api/finnhub?symbols=${encodeURIComponent(sym)}`)
+        const pdata: PriceMap = pr.ok ? await pr.json() : {}
+        const live = pdata[sym]
+        if (!live || live <= 0) throw new Error('no price')
+        costBasis = live
+      } catch {
+        setFormError(`Couldn't look up a current price for ${sym}. Enter a cost basis to add it.`)
+        setSaving(false)
+        return
+      }
+    }
+
     const res = await fetch('/api/holdings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         symbol: newSymbol.toUpperCase().trim(),
         shares: parseFloat(newShares),
-        cost_basis: parseFloat(newCost),
+        cost_basis: costBasis,
         trail_pct: parseFloat(newTrail) || 20,
+        cost_basis_auto: !costEntered,
       }),
     })
     const data = await res.json()
@@ -140,13 +203,13 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setSaving(false)
   }
 
-  // â”€â”€â”€ Remove holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Remove holding ───────────────────────────────────────────────────────
   async function removeHolding(id: string) {
     await fetch(`/api/holdings?id=${id}`, { method: 'DELETE' })
     setHoldings(prev => prev.filter(h => h.id !== id))
   }
 
-  // â”€â”€â”€ Edit holding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Edit holding ─────────────────────────────────────────────────────────
   function startEdit(h: Holding) {
     setEditingId(h.id)
     setEditShares(String(h.shares))
@@ -173,6 +236,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         shares: parseFloat(editShares),
         cost_basis: parseFloat(editCost),
         trail_pct: parseFloat(editTrail) || 20,
+        cost_basis_auto: false,
       }),
     })
     const data = await res.json()
@@ -182,7 +246,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setEditingId(null)
   }
 
-  // â”€â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Sign out ─────────────────────────────────────────────────────────────
   async function signOut() {
     try {
       await supabase.auth.signOut()
@@ -200,7 +264,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     }
   }
 
-  // â”€â”€â”€ Tab click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Tab click ───────────────────────────────────────────────────────────
   // Free users can now click into a locked tab and see a blurred preview of
   // real content (with an Upgrade CTA over it) instead of being bounced
   // straight to the modal. Shows them what they're missing.
@@ -208,16 +272,23 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
     setActiveTab(tab)
   }
 
-  // â”€â”€â”€ Derived portfolio metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Derived portfolio metrics ────────────────────────────────────────────
+  // Portfolio Value counts everything: shares x live price is a real figure
+  // whether or not we know what was paid. Cost basis and gain/loss only count
+  // holdings with a cost basis the user actually entered - including the
+  // auto-filled placeholders would quietly drag the return toward zero and
+  // report a number nobody earned.
+  const priced = holdings.filter(h => !h.cost_basis_auto)
+  const pendingCost = holdings.filter(h => h.cost_basis_auto)
   const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
-  const totalCost  = holdings.reduce((s, h) => s + h.cost_basis * h.shares, 0)
-  const totalGain  = totalValue - totalCost
+  const totalCost  = priced.reduce((s, h) => s + h.cost_basis * h.shares, 0)
+  const totalGain  = priced.reduce((s, h) => s + ((prices[h.symbol] ?? h.cost_basis) - h.cost_basis) * h.shares, 0)
   const totalPct   = totalCost ? (totalGain / totalCost) * 100 : 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)' }}>
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{
@@ -226,7 +297,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
             color: '#fff', fontWeight: 800, fontSize: 13,
           }}>O</span>
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>Ownfolio LLC</span>
-          {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>â†»</span>}
+          {priceLoading && <span style={{ fontSize: 11, color: 'var(--muted-2)', marginLeft: 2 }}>↻</span>}
           <Link
             href="/disclaimer"
             title="Ownfolio LLC provides data and analytics, not personalized investment advice  -  see full disclaimer"
@@ -261,19 +332,19 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         </div>
       </header>
 
-      {/* â”€â”€ Free plan banner â”€â”€ */}
+      {/* ── Free plan banner ── */}
       {plan === 'free' && (
         <div style={{ background: 'var(--accent-tint)', borderBottom: '1px solid var(--border)', padding: '8px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 13, color: 'var(--text)' }}>
-            Free plan &middot; {holdings.length}/{FREE_LIMIT} holdings &middot; Fundamentals &amp; Watchlist are Pro
+            Free plan &middot; {realHoldings.length}/{FREE_LIMIT}{' '}holdings &middot; Fundamentals &amp; Watchlist are Pro
           </span>
           <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 12, padding: '4px 14px' }}>
-            Upgrade to Pro â†’
+            Upgrade to Pro →
           </button>
         </div>
       )}
 
-      {/* â”€â”€ Tabs â”€â”€ */}
+      {/* ── Tabs ── */}
       <nav style={{ display: 'flex', gap: 22, padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', overflowX: 'auto', flexShrink: 0 }}>
         {ALL_TABS.map(tab => {
           const locked = PRO_ONLY_TABS.includes(tab) && plan === 'free'
@@ -288,31 +359,37 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
               fontWeight: active ? 700 : 600,
               letterSpacing: '0.01em',
             }}>
-              {locked ? 'ðŸ”’ ' : ''}{tab}
+              {locked ? '🔒 ' : ''}{tab}
             </button>
           )
         })}
       </nav>
 
-      {/* â”€â”€ Main content â”€â”€ */}
+      {/* ── Main content ── */}
       <main style={{ flex: 1, overflow: 'auto', padding: 24 }}>
 
         {activeTab === 'Tracker' && (
           <TrackerTab
             holdings={holdings} prices={prices} plan={plan}
+            sampleMode={sampleMode}
+            onTrySample={() => setSampleMode(true)}
+            onExitSample={() => setSampleMode(false)}
+            realCount={realHoldings.length}
+            pendingCost={pendingCost}
             totalValue={totalValue} totalCost={totalCost} totalGain={totalGain} totalPct={totalPct}
             onAdd={() => {
-              if (plan === 'free' && holdings.length >= FREE_LIMIT) { setShowUpgrade(true); return }
+              if (plan === 'free' && realHoldings.length >= FREE_LIMIT) { setShowUpgrade(true); return }
+              setSampleMode(false)
               setShowAddForm(true)
             }}
-            onRemove={removeHolding}
+            onRemove={sampleMode ? () => {} : removeHolding}
             showAddForm={showAddForm} onCancelAdd={() => { setShowAddForm(false); setFormError('') }}
             newSymbol={newSymbol} setNewSymbol={setNewSymbol}
             newShares={newShares} setNewShares={setNewShares}
             newCost={newCost} setNewCost={setNewCost}
             newTrail={newTrail} setNewTrail={setNewTrail}
             formError={formError} saving={saving} onSave={addHolding} freeLimit={FREE_LIMIT}
-            editingId={editingId} onStartEdit={startEdit} onCancelEdit={cancelEdit} onSaveEdit={saveEdit}
+            editingId={editingId} onStartEdit={sampleMode ? () => {} : startEdit} onCancelEdit={cancelEdit} onSaveEdit={saveEdit}
             editShares={editShares} setEditShares={setEditShares}
             editCost={editCost} setEditCost={setEditCost}
             editTrail={editTrail} setEditTrail={setEditTrail}
@@ -374,8 +451,8 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
   )
 }
 
-// â”€â”€â”€ Tracker Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit, editingId, onStartEdit, onCancelEdit, onSaveEdit, editShares, setEditShares, editCost, setEditCost, editTrail, setEditTrail, editError, editSaving }: {
+// ─── Tracker Tab ──────────────────────────────────────────────────────────────
+function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, totalPct, onAdd, onRemove, showAddForm, onCancelAdd, newSymbol, setNewSymbol, newShares, setNewShares, newCost, setNewCost, newTrail, setNewTrail, formError, saving, onSave, freeLimit, sampleMode, onTrySample, onExitSample, realCount, pendingCost, editingId, onStartEdit, onCancelEdit, onSaveEdit, editShares, setEditShares, editCost, setEditCost, editTrail, setEditTrail, editError, editSaving }: {
   holdings: Holding[]; prices: PriceMap; plan: Plan
   totalValue: number; totalCost: number; totalGain: number; totalPct: number
   onAdd: () => void; onRemove: (id: string) => void
@@ -385,6 +462,8 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   newCost: string; setNewCost: (v: string) => void
   newTrail: string; setNewTrail: (v: string) => void
   formError: string; saving: boolean; onSave: () => void; freeLimit: number
+  sampleMode: boolean; onTrySample: () => void; onExitSample: () => void; realCount: number
+  pendingCost: Holding[]
   editingId: string | null; onStartEdit: (h: Holding) => void; onCancelEdit: () => void; onSaveEdit: (id: string) => void
   editShares: string; setEditShares: (v: string) => void
   editCost: string; setEditCost: (v: string) => void
@@ -392,8 +471,28 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
   editError: string; editSaving: boolean
 }) {
   const colorMap = getSymbolColorMap(holdings, prices)
+  const editingHolding = editingId ? holdings.find(h => h.id === editingId) ?? null : null
   return (
     <div>
+      {/* Sample-data banner - only while the sample view is switched on */}
+      {sampleMode && (
+        <div style={{
+          background: 'var(--yellow-tint)', border: '1px solid var(--yellow)', borderLeft: '4px solid var(--yellow)',
+          borderRadius: 4, padding: '12px 16px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 13, color: 'var(--text)' }}>
+            <strong>You&rsquo;re viewing sample data.</strong> These are example figures on well-known
+            symbols, shown so you can see how every tab works. They are not real holdings, not saved to
+            your account, and not a recommendation. Prices shown are live; the share counts and cost
+            bases are made up.
+          </div>
+          <button className="btn-outline" onClick={onExitSample} style={{ fontSize: 12, padding: '5px 14px', whiteSpace: 'nowrap' }}>
+            Exit sample view
+          </button>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
@@ -404,16 +503,84 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
           <div key={label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px' }}>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
             <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+            {/* The gap is the nudge: holdings without a real cost basis are
+                left out of these two figures, and the note says so and opens
+                the first one for editing. */}
+            {pendingCost.length > 0 && (label === 'Total Cost Basis' || label === 'Total Gain / Loss') && (
+              <button
+                onClick={() => onStartEdit(pendingCost[0])}
+                style={{
+                  background: 'transparent', border: 'none', padding: 0, marginTop: 6,
+                  fontSize: 11.5, color: 'var(--accent)', textAlign: 'left', textDecoration: 'underline',
+                }}
+              >
+                {pendingCost.length} holding{pendingCost.length > 1 ? 's' : ''} not included &ndash; add cost basis
+              </button>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Edit panel. The Edit button on each holding card set editingId but
+          nothing ever rendered off it, so editing was a dead control - this is
+          the form it was always meant to open. Also where the "add cost basis"
+          prompts land. */}
+      {editingHolding && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 24, maxWidth: 560, marginBottom: 20 }}>
+          <h3 style={{ marginBottom: 4, fontSize: 15, fontWeight: 600 }}>
+            Edit {editingHolding.symbol}
+          </h3>
+          {editingHolding.cost_basis_auto && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+              Enter what you actually paid per share and this holding will start
+              counting toward your gain and loss totals.
+            </p>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+            {[
+              { label: 'Shares', value: editShares, set: setEditShares, placeholder: '10' },
+              { label: 'Cost Basis (per share)', value: editCost, set: setEditCost, placeholder: '150.00' },
+              { label: 'Drawdown Threshold %', value: editTrail, set: setEditTrail, placeholder: '20' },
+            ].map(({ label, value, set, placeholder }) => (
+              <div key={label}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 5, fontWeight: 500 }}>{label}</label>
+                <input
+                  value={value}
+                  onChange={e => set(e.target.value)}
+                  placeholder={placeholder}
+                  onKeyDown={e => e.key === 'Enter' && onSaveEdit(editingHolding.id)}
+                />
+              </div>
+            ))}
+          </div>
+          {editError && <p style={{ color: 'var(--red)', fontSize: 13, marginTop: 10 }}>{editError}</p>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button className="btn-primary" onClick={() => onSaveEdit(editingHolding.id)} disabled={editSaving}>
+              {editSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button className="btn-outline" onClick={onCancelEdit}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Holdings card grid */}
       {holdings.length > 0 ? (
         <HoldingsCardGrid holdings={holdings} prices={prices} onStartEdit={onStartEdit} onRemove={onRemove} />
       ) : (
-        <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          No holdings yet. Add your first position below.
+        <div style={{ padding: '36px 24px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+            Nothing here yet
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 460, margin: '0 auto 20px' }}>
+            Add a position below to start tracking your own portfolio  -  or load sample data first
+            to see what every tab looks like with holdings in it.
+          </div>
+          <button className="btn-primary" onClick={onTrySample} style={{ padding: '9px 20px' }}>
+            Try it with sample data
+          </button>
+          <div style={{ fontSize: 11.5, color: 'var(--muted-2)', marginTop: 10 }}>
+            Example figures only  -  nothing is saved to your account
+          </div>
         </div>
       )}
       {/* Add holding form */}
@@ -424,7 +591,7 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
             {[
               { label: 'Ticker Symbol', value: newSymbol, set: setNewSymbol, placeholder: 'AAPL', upper: true },
               { label: 'Shares', value: newShares, set: setNewShares, placeholder: '10' },
-              { label: 'Cost Basis (per share)', value: newCost, set: setNewCost, placeholder: '150.00' },
+              { label: 'Cost Basis (per share) - optional', value: newCost, set: setNewCost, placeholder: "Leave blank for today's price" },
               { label: 'Drawdown Threshold %', value: newTrail, set: setNewTrail, placeholder: '20' },
             ].map(({ label, value, set, placeholder, upper }) => (
               <div key={label}>
@@ -438,6 +605,19 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
               </div>
             ))}
           </div>
+          {/* Said before they commit, not discovered afterwards. Only appears
+              while the field is actually empty. */}
+          {newCost.trim() === '' && (
+            <div style={{
+              marginTop: 12, padding: '10px 12px', borderRadius: 4,
+              background: 'var(--yellow-tint)', border: '1px solid var(--yellow)', borderLeft: '3px solid var(--yellow)',
+              fontSize: 12, color: 'var(--text)', lineHeight: 1.5,
+            }}>
+              No cost basis? We&rsquo;ll record today&rsquo;s market price so you can start tracking right away.
+              Your gain and loss figures won&rsquo;t mean anything until you enter what you actually paid, so
+              this holding stays out of those totals until you do. You can add it any time.
+            </div>
+          )}
           {formError && <p style={{ color: 'var(--red)', fontSize: 13, marginTop: 10 }}>{formError}</p>}
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
             <button className="btn-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving - ' : 'Add Holding'}</button>
@@ -448,17 +628,17 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
         <button
           className="btn-primary"
           onClick={onAdd}
-          disabled={plan === 'free' && holdings.length >= freeLimit}
+          disabled={plan === 'free' && realCount >= freeLimit}
           style={{ padding: '9px 20px' }}
         >
-          + Add Holding{plan === 'free' ? ` (${holdings.length}/${freeLimit})` : ''}
+          + Add Holding{plan === 'free' ? ` (${realCount}/${freeLimit})` : ''}
         </button>
       )}
     </div>
   )
 }
 
-// â”€â”€â”€ My Returns Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── My Returns Tab ───────────────────────────────────────────────────────────
 // Sorts the user's own holdings by their own return since purchase. This is a
 // personal calculation off each holding's individual cost basis  -  not a rating
 // of the security itself. Two people holding the same stock will see different
@@ -482,7 +662,7 @@ function MyReturnsTab({ holdings, prices }: { holdings: Holding[]; prices: Price
   )
 }
 
-// â”€â”€â”€ Position Status Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Position Status Tab ──────────────────────────────────────────────────────
 // Describes what changed in a position (price vs. your own cost basis only).
 // Renamed from "Signals"  -  like My Returns, this is computed off each user's
 // private cost basis, so it is a
@@ -501,7 +681,7 @@ function PositionStatusTab({ holdings, prices }: { holdings: Holding[]; prices: 
   )
 }
 
-// â”€â”€â”€ Optimizer Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Optimizer Tab ────────────────────────────────────────────────────────────
 function OptimizerTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdings: Holding[]; prices: PriceMap; totalValue: number; plan: Plan; onUpgrade: () => void }) {
   const colorMap = getSymbolColorMap(holdings, prices)
   const withWeights = holdings.map(h => {
@@ -568,7 +748,7 @@ function OptimizerTab({ holdings, prices, totalValue, plan, onUpgrade }: { holdi
   )
 }
 
-// â”€â”€â”€ Concentration Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Concentration Tab ────────────────────────────────────────────────────────
 // Replaces the former Kelly-criterion position-sizing tool. That tool computed a
 // "recommended" position size from an assumed win probability  -  which functions
 // like personalized position-sizing advice and doesn't fit long-term, conviction-
@@ -608,7 +788,7 @@ function ConcentrationTab({ holdings, prices, totalValue, plan, onUpgrade }: { h
   )
 }
 
-// â”€â”€â”€ Industry Concentration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Industry Concentration ───────────────────────────────────────────────────
 // Same per-holding weights as above, grouped by Finnhub's industry classification
 // (finnhubIndustry, from /stock/profile2  -  free tier, already used in the
 // Fundamentals tab) instead of by symbol. Same "fact, not a formula" framing as
@@ -689,7 +869,7 @@ function getSymbolColorMap(holdings: Holding[], prices: PriceMap): Record<string
   return map
 }
 
-// â”€â”€â”€ Charts Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Charts Tab ───────────────────────────────────────────────────────────────
 function ChartsTab({ holdings, prices }: { holdings: Holding[]; prices: PriceMap }) {
   const totalValue = holdings.reduce((s, h) => s + (prices[h.symbol] ?? h.cost_basis) * h.shares, 0)
 
@@ -776,7 +956,7 @@ function GainLossChart({ holdings, prices }: { holdings: Holding[]; prices: Pric
   )
 }
 
-// â”€â”€â”€ Fundamentals Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Fundamentals Tab ─────────────────────────────────────────────────────────
 // Includes generic per-ticker percentile scores, shown individually rather
 // than blended into one number (My Returns / Position Status are personal
 // calculators computed off each user's own cost basis  -  this is the
@@ -1115,13 +1295,13 @@ function FundamentalsCard({ symbol, metrics, metricsLoading, color }: { symbol: 
       <EarningsHistory symbol={symbol} />
 
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
-        Data from Finnhub &middot; Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance â†—</a>
+        Data from Finnhub &middot; Full detail at <a href={`https://finance.yahoo.com/quote/${symbol}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Yahoo Finance ↗</a>
       </p>
     </div>
   )
 }
 
-// â”€â”€â”€ Earnings history (last ~4 quarters, â‰ˆ1 year) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Earnings history (last ~4 quarters, ≈1 year) ────────────────────────────
 // Actual vs. estimated EPS per quarter, straight from Finnhub  -  no commentary
 // or scoring layered on top, same informational framing as the News tab.
 interface EarningsQuarter {
@@ -1202,7 +1382,7 @@ function ScoreChip({ label, value, note }: { label: string; value: number | null
   )
 }
 
-// â”€â”€â”€ News Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── News Tab ─────────────────────────────────────────────────────────────────
 // Live headlines for whatever you currently hold  -  straight from Finnhub, no
 // commentary or rating layered on top. Purely informational, like the rest of
 // the Pro tabs post-repositioning.
@@ -1297,7 +1477,7 @@ function NewsCard({ symbol, color }: { symbol: string; color?: string }) {
   )
 }
 
-// â”€â”€â”€ Stop-loss Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stop-loss Tab ────────────────────────────────────────────────────────────
 function StopLossTab({ holdings, prices, highs }: { holdings: Holding[]; prices: PriceMap; highs: PriceMap }) {
   const colorMap = getSymbolColorMap(holdings, prices)
 
@@ -1326,7 +1506,7 @@ function StopLossTab({ holdings, prices, highs }: { holdings: Holding[]; prices:
   )
 }
 
-// â”€â”€â”€ Watchlist Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Watchlist Tab ────────────────────────────────────────────────────────────
 // Pro-only. Tickers you pick (never shares or cost basis)  -  this is what the
 // monthly digest email filters down to, separate from what you actually hold
 // in Tracker. See app/api/watchlist and app/api/cron/send-newsletter.
@@ -1421,7 +1601,7 @@ function WatchlistTab() {
   )
 }
 
-// â”€â”€â”€ Upgrade Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Upgrade Modal ────────────────────────────────────────────────────────────
 function UpgradeModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState<string | null>(null)
 
@@ -1445,7 +1625,7 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '36px 32px', width: '100%', maxWidth: 500, position: 'relative' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'transparent', color: 'var(--muted)', fontSize: 22, padding: '0 6px', lineHeight: 1 }}>&times;</button>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>âœ¦</div>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>✦</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Upgrade to Pro</h2>
           <p style={{ color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>
             Unlock more than 10 holdings, full Fundamentals data,<br />Industry Concentration, Allocation Notes, and Watchlist.
@@ -1488,7 +1668,7 @@ function PlanButton({ label, price, badge, onClick, loading }: { label: string; 
   )
 }
 
-// â”€â”€â”€ Locked Tab Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Locked Tab Preview ────────────────────────────────────────────────────────
 // For free users, renders the REAL tab content (their own holdings/data)
 // blurred out, with an Upgrade CTA card overlaid. Lets people see there's
 // something real behind the paywall instead of just hitting a blank wall.
@@ -1531,12 +1711,12 @@ function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: bo
             boxShadow: '0 8px 28px rgba(0,0,0,.14)',
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>ðŸ”’ {tabName} is a Pro feature</div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>🔒 {tabName} is a Pro feature</div>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
             That's a live preview using your own holdings. Upgrade to unlock {tabName} and every other Pro tab.
           </p>
           <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 13, padding: '9px 20px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>
-            Upgrade to Pro â†’
+            Upgrade to Pro →
           </button>
         </div>
       </div>
@@ -1544,7 +1724,7 @@ function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: bo
   )
 }
 
-// â”€â”€â”€ Inline Pro Upsell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inline Pro Upsell ──────────────────────────────────────────────────────
 // Compact version of the upgrade prompt, used *inside* an otherwise-free tab
 // to gate just one advanced section (e.g. Industry Concentration, Allocation
 // Notes) rather than blurring the whole tab. No fake/blurred data here since
@@ -1558,17 +1738,17 @@ function InlineProUpsell({ label, description, onUpgrade }: { label: string; des
       gap: 16, flexWrap: 'wrap',
     }}>
       <div>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>ðŸ”’ {label}  -  Pro feature</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>🔒 {label}  -  Pro feature</div>
         <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{description}</div>
       </div>
       <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 12.5, padding: '8px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-        Upgrade to Pro â†’
+        Upgrade to Pro →
       </button>
     </div>
   )
 }
 
-// â”€â”€â”€ Shared UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared UI helpers ────────────────────────────────────────────────────────
 function ProTabShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <div>
@@ -1584,7 +1764,7 @@ function ProTabShell({ title, description, children }: { title: string; descript
 function EmptyState() {
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-      Add holdings in the Tracker tab to see data here.
+      Nothing to show yet. Add holdings in the Tracker tab  -  or load sample data there to preview this tab with real market prices.
     </div>
   )
 }

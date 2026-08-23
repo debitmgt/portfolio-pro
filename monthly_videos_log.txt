@@ -12,3 +12,87 @@ Wrote ./monthly_videos\_silent_smallcap_2026-07.mp4 (479 frames, 16.0s)
   -> ./monthly_videos\smallcap_2026-07_final.mp4
 
 Done. Final videos in ./monthly_videos/
+
+=== Large Cap (2026-08) ===
+Large Cap part 1: Large Cap script, part 1 of 13. Number one this month, Arrowhead Pharmaceuticals Inc, up 361 percent. That's out of the Large Cap top 25, ranked by trailing return. And at rank 25, Chevron Corp, up 29 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part01_of_13_final.mp4
+Large Cap part 2: Large Cap script, part 2 of 13. Rank 2, MongoDB Inc, up 125 percent. And rank 24, Penumbra Inc, up 29 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part02_of_13_final.mp4
+Large Cap part 3: Large Cap script, part 3 of 13. Rank 3, Jfrog Ltd, up 125 percent. And rank 23, ITT Inc, up 31 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part03_of_13_final.mp4
+Large Cap part 4: Large Cap script, part 4 of 13. Rank 4, Jazz Pharmaceuticals PLC, up 110 percent. And rank 22, Apple Inc, up 31 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part04_of_13_final.mp4
+Large Cap part 5: Large Cap script, part 5 of 13. Rank 5, Caterpillar Inc, up 105 percent. And rank 21, ConocoPhillips, up 33 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part05_of_13_final.mp4
+Large Cap part 6: Large Cap script, part 6 of 13. Rank 6, Datadog Inc (Pre-Reincorporation), up 105 percent. And rank 20, Bank of America Corp, up 35 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part06_of_13_final.mp4
+Large Cap part 7: Large Cap script, part 7 of 13. Rank 7, Eli Lilly and Co, up 72 percent. And rank 19, Goldman Sachs Group Inc, up 39 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part07_of_13_final.mp4
+Large Cap part 8: Large Cap script, part 8 of 13. Rank 8, Alphabet Inc, up 70 percent. And rank 18, Mueller Industries Inc, up 43 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part08_of_13_final.mp4
+Large Cap part 9: Large Cap script, part 9 of 13. Rank 9, Merck & Co Inc, up 64 percent. And rank 17, Globus Medical Inc, up 43 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part09_of_13_final.mp4
+Large Cap part 10: Large Cap script, part 10 of 13. Rank 10, SLB NV, up 62 percent. And rank 16, RTX Corp, up 44 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part10_of_13_final.mp4
+Large Cap part 11: Large Cap script, part 11 of 13. Rank 11, Halozyme Therapeutics Inc, up 51 percent. And rank 15, Morgan Stanley, up 46 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part11_of_13_final.mp4
+Large Cap part 12: Large Cap script, part 12 of 13. Rank 12, Exxonmobil Holdings Corp, up 49 percent. And rank 14, UnitedHealth Group Inc, up 48 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part12_of_13_final.mp4
+Large Cap part 13: Large Cap script, part 13 of 13, the middle of the list. Rank 13, Johnson & Johnson, up 49 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\large_2026-08_part13_of_13_final.mp4
+
+=== Mid Cap (2026-08) ===
+Mid Cap part 1: Mid Cap script, part 1 of 13. Number one this month, CareDx Inc, up 283 percent. That's out of the Mid Cap top 25, ranked by trailing return. And at rank 25, Levi Strauss & Co, up 8.8 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part01_of_13_final.mp4
+Mid Cap part 2: Mid Cap script, part 2 of 13. Rank 2, Arcus Biosciences Inc, up 197 percent. And rank 24, Matador Resources Co, up 12 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part02_of_13_final.mp4
+Mid Cap part 3: Mid Cap script, part 3 of 13. Rank 3, Iovance Biotherapeutics Inc, up 185 percent. And rank 23, Elastic NV, up 13 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part03_of_13_final.mp4
+Mid Cap part 4: Mid Cap script, part 4 of 13. Rank 4, Digi International Inc, up 159 percent. And rank 22, ACADIA Pharmaceuticals Inc, up 15 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part04_of_13_final.mp4
+Mid Cap part 5: Mid Cap script, part 5 of 13. Rank 5, Nurix Therapeutics Inc, up 156 percent. And rank 21, ETSY Inc, up 17 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part05_of_13_final.mp4
+Mid Cap part 6: Mid Cap script, part 6 of 13. Rank 6, Krystal Biotech Inc, up 121 percent. And rank 20, Appian Corp, up 19 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part06_of_13_final.mp4
+Mid Cap part 7: Mid Cap script, part 7 of 13. Rank 7, Neogen Corp, up 112 percent. And rank 19, Dropbox Inc, up 24 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part07_of_13_final.mp4
+Mid Cap part 8: Mid Cap script, part 8 of 13. Rank 8, Vaxcyte Inc, up 85 percent. And rank 18, BILL Holdings Inc, up 26 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part08_of_13_final.mp4
+Mid Cap part 9: Mid Cap script, part 9 of 13. Rank 9, Cheesecake Factory Inc, up 79 percent. And rank 17, Qualys Inc, up 44 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part09_of_13_final.mp4
+Mid Cap part 10: Mid Cap script, part 10 of 13. Rank 10, Denali Therapeutics Inc, up 69 percent. And rank 16, UiPath Inc, up 49 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part10_of_13_final.mp4
+Mid Cap part 11: Mid Cap script, part 11 of 13. Rank 11, Arcutis Biotherapeutics Inc, up 64 percent. And rank 15, Beam Therapeutics Inc, up 52 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part11_of_13_final.mp4
+Mid Cap part 12: Mid Cap script, part 12 of 13. Rank 12, Scholar Rock Holding Corp, up 63 percent. And rank 14, Crocs Inc, up 57 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part12_of_13_final.mp4
+Mid Cap part 13: Mid Cap script, part 13 of 13, the middle of the list. Rank 13, Atkore Inc, up 58 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\mid_2026-08_part13_of_13_final.mp4
+
+=== Small Cap (2026-08) ===
+Small Cap part 1: Small Cap script, part 1 of 13. Number one this month, AnaptysBio Inc, up 339 percent. That's out of the Small Cap top 25, ranked by trailing return. And at rank 25, Sarepta Therapeutics Inc, down 11 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part01_of_13_final.mp4
+Small Cap part 2: Small Cap script, part 2 of 13. Rank 2, Ironwood Pharmaceuticals Inc, up 303 percent. And rank 24, Lovesac Co, down 10 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part02_of_13_final.mp4
+Small Cap part 3: Small Cap script, part 3 of 13. Rank 3, Bandwidth Inc, up 279 percent. And rank 23, Teladoc Health Inc, down 6.7 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part03_of_13_final.mp4
+Small Cap part 4: Small Cap script, part 4 of 13. Rank 4, Tandem Diabetes Care Inc, up 113 percent. And rank 22, Editas Medicine Inc, down 4.7 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part04_of_13_final.mp4
+Small Cap part 5: Small Cap script, part 5 of 13. Rank 5, MarineMax Inc, up 102 percent. And rank 21, EverCommerce Inc, down 3.3 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part05_of_13_final.mp4
+Small Cap part 6: Small Cap script, part 6 of 13. Rank 6, Myers Industries Inc, up 101 percent. And rank 20, Progress Software Corp, down 2.7 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part06_of_13_final.mp4
+Small Cap part 7: Small Cap script, part 7 of 13. Rank 7, Mitek Systems Inc, up 93 percent. And rank 19, Kaltura Inc, up 7.9 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part07_of_13_final.mp4
+Small Cap part 8: Small Cap script, part 8 of 13. Rank 8, BJ's Restaurants Inc, up 92 percent. And rank 18, Intellia Therapeutics Inc, up 9.3 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part08_of_13_final.mp4
+Small Cap part 9: Small Cap script, part 9 of 13. Rank 9, Kura Oncology Inc, up 65 percent. And rank 17, 8x8 Inc, up 12 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part09_of_13_final.mp4
+Small Cap part 10: Small Cap script, part 10 of 13. Rank 10, Consensus Cloud Solutions Inc, up 52 percent. And rank 16, Amplitude Inc, up 15 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part10_of_13_final.mp4
+Small Cap part 11: Small Cap script, part 11 of 13. Rank 11, Oric Pharmaceuticals Inc, up 40 percent. And rank 15, Omnicell Inc, up 19 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part11_of_13_final.mp4
+Small Cap part 12: Small Cap script, part 12 of 13. Rank 12, Cato Corp, up 20 percent. And rank 14, OneSpan Inc, up 19 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part12_of_13_final.mp4
+Small Cap part 13: Small Cap script, part 13 of 13, the middle of the list. Rank 13, Zumiez Inc, up 19 percent. Full list in the newsletter. Browse past issues.
+  -> ./monthly_videos\small_2026-08_part13_of_13_final.mp4

@@ -33,6 +33,14 @@ export interface Holding {
   symbol: string
   shares: number
   cost_basis: number
+  // True when cost_basis is a placeholder - the market price at the moment the
+  // holding was added, stored because the user left the field blank rather
+  // than because they told us what they paid. The column is NOT NULL, so a
+  // number is always present; this flag is what says whether it means
+  // anything. Gain/loss for these rows is excluded from portfolio totals and
+  // from the returns views, and clears to false the moment a real cost basis
+  // is entered.
+  cost_basis_auto: boolean
   trail_pct: number
   created_at: string
   updated_at: string
@@ -234,7 +242,9 @@ export type Database = {
       }
       holdings: {
         Row: Flatten<Holding>
-        Insert: Flatten<Omit<Holding, 'id' | 'created_at' | 'updated_at'>>
+        // cost_basis_auto is optional on insert - the column defaults to false
+        // in Postgres, so a caller that doesn't care can leave it off.
+        Insert: Flatten<Omit<Holding, 'id' | 'created_at' | 'updated_at' | 'cost_basis_auto'> & { cost_basis_auto?: boolean }>
         Update: Flatten<Partial<Omit<Holding, 'id' | 'user_id'>>>
         Relationships: []
       }

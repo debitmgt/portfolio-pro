@@ -226,21 +226,12 @@ def build_part_video(rows, tier_label, month_label, visible_ranks, part_num, tot
         silent_path,
     ], check=True, capture_output=True)
     shutil.rmtree(tmpdir)
-    if narration_audio_path and os.path.exists(narration_audio_path):
-        # Merge the ElevenLabs narration onto the rendered (silent) clip.
-        # -shortest guards against a rounding mismatch between the audio
-        # length and n_frames leaving a silent tail or audio past the last
-        # frame.
-        subprocess.run([
-            "ffmpeg", "-y", "-i", silent_path, "-i", narration_audio_path,
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "128k", "-shortest", out_path,
-        ], check=True, capture_output=True)
-    else:
-        subprocess.run([
-            "ffmpeg", "-y", "-i", silent_path,
-            "-c:v", "copy", "-an", out_path,
-        ], check=True, capture_output=True)
+    subprocess.run([
+        "ffmpeg", "-y", "-i", silent_path, "-i", narration_audio_path,
+        "-c:v", "copy", "-c:a", "aac", "-shortest", out_path,
+    ], check=True, capture_output=True)
     os.remove(silent_path)
+    os.remove(narration_audio_path)
     print("  -> " + out_path)
 
 def run(voice_id=None, only_tier=None, only_part=None):
@@ -253,8 +244,8 @@ def run(voice_id=None, only_tier=None, only_part=None):
     missing = [name for name, val in [
         ("NEXT_PUBLIC_SUPABASE_URL", supabase_url),
         ("SUPABASE_SERVICE_ROLE_KEY", service_key),
-        ("_ok1", "yes"),
-        ("_ok2", "yes"),
+        ("ELEVENLABS_API_KEY", elevenlabs_key),
+        ("ELEVENLABS_VOICE_ID or --voice-id", voice_id),
     ] if not val]
     if missing:
         print("Missing required values in .env.local: " + ", ".join(missing))
@@ -282,20 +273,13 @@ def run(voice_id=None, only_tier=None, only_part=None):
             text = narration_for_part(tier_label, period_label, rows, i, total_parts, visible_ranks)
             print(tier_label + " part " + str(i) + ": " + text)
             audio_path = os.path.join(OUT_DIR, "_voice_" + cap_tier + "_" + period_label + "_part" + str(i).zfill(2) + ".mp3")
-            have_audio = False
-            if elevenlabs_key and voice_id:
-                try:
-                    synthesize_voice(text, voice_id, elevenlabs_key, audio_path)
-                    have_audio = True
-                except Exception as e:
-                    print("  !! voice synthesis failed (" + str(e) + "); rendering this clip silent instead.")
-            else:
-                print("  (no ElevenLabs key/voice id configured -- rendering silent, 20s fixed duration)")
-            duration = get_audio_duration(audio_path) if have_audio else 20.0
+            if not os.path.exists(audio_path):
+                synthesize_voice(text, voice_id, elevenlabs_key, audio_path)
+            duration = get_audio_duration(audio_path)
             out_path = os.path.join(OUT_DIR, cap_tier + "_" + period_label + "_part" + str(i).zfill(2) + "_of_" + str(total_parts) + "_final.mp4")
             chart_data = build_chart_data_for_part(rows, visible_ranks, twelve_data_key, price_cache)
             build_part_video(rows, tier_label, period_label, visible_ranks, i, total_parts,
-                              audio_path if have_audio else None, duration, out_path, chart_data=chart_data)
+                              audio_path, duration, out_path, chart_data=chart_data)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()

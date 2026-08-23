@@ -103,7 +103,12 @@ export function GainLossBar({
   holdings: Holding[]
   prices: PriceMap
 }) {
+  // Holdings whose cost basis is an auto-filled placeholder have no real
+  // return to plot - charting them would draw a bar off a number the user
+  // never gave us. They're left out here; the Tracker tab is where the prompt
+  // to fill them in lives.
   const data = holdings
+    .filter(h => h.cost_basis_auto !== true)
     .map(h => {
       const price = prices[h.symbol]
       const ret = price ? (price - h.cost_basis) / h.cost_basis * 100 : 0
@@ -111,15 +116,24 @@ export function GainLossBar({
     })
     .sort((a, b) => b.ret - a.ret)
 
+  const omitted = holdings.filter(h => h.cost_basis_auto === true).length
+
   if (data.length === 0) {
-    return <p style={{ color: 'var(--muted)', fontSize: 13 }}>No positions to chart.</p>
+    return (
+      <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+        {omitted > 0
+          ? 'No returns to chart yet - add a cost basis to your holdings in the Tracker tab.'
+          : 'No positions to chart.'}
+      </p>
+    )
   }
 
   // Dynamic height so bars stay readable with many holdings
   const chartHeight = Math.max(200, data.length * 30)
 
   return (
-    <ResponsiveContainer width="100%" height={chartHeight}>
+    <>
+      <ResponsiveContainer width="100%" height={chartHeight}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
         <XAxis
           type="number"
@@ -156,5 +170,11 @@ export function GainLossBar({
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+    {omitted > 0 && (
+      <p style={{ color: 'var(--muted)', fontSize: 11.5, marginTop: 8 }}>
+        {omitted} holding{omitted > 1 ? 's' : ''} not shown &ndash; no cost basis entered yet.
+      </p>
+    )}
+    </>
   )
 }
