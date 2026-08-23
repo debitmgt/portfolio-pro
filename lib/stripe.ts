@@ -1,5 +1,6 @@
 // lib/stripe.ts
 import Stripe from 'stripe'
+import { PLAN_PRICING } from './planPricing'
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-06-24.dahlia',
@@ -32,7 +33,7 @@ export const PLANS = {
   },
   monthly: {
     name: 'Pro  -  Monthly',
-    price: 4.95,
+    price: PLAN_PRICING.monthly.price,
     priceId: process.env.STRIPE_MONTHLY_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [
@@ -46,7 +47,7 @@ export const PLANS = {
   },
   annual: {
     name: 'Pro  -  Annual',
-    price: 49,
+    price: PLAN_PRICING.annual.price,
     priceId: process.env.STRIPE_ANNUAL_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [

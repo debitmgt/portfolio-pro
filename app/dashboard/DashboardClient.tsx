@@ -1,8 +1,9 @@
-﻿'use client'
+'use client'
 // app/dashboard/DashboardClient.tsx
 import { useState, useEffect, useCallback } from 'react'
 import type { Holding, Plan, TickerMetrics } from '@/lib/supabase/types'
 import { createClient } from '@/lib/supabase/client'
+import { PLAN_PRICING } from '@/lib/planPricing'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
@@ -1632,8 +1633,8 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <PlanButton label="Monthly" price="$9 / month" onClick={() => startCheckout('monthly')} loading={loading === 'monthly'} />
-          <PlanButton label="Annual" price="$79 / year" badge="Save 27%" onClick={() => startCheckout('annual')} loading={loading === 'annual'} />
+          <PlanButton label="Monthly" price={`$${PLAN_PRICING.monthly.price} / month`} onClick={() => startCheckout('monthly')} loading={loading === 'monthly'} />
+          <PlanButton label="Annual" price={`$${PLAN_PRICING.annual.price} / year`} badge={PLAN_PRICING.annual.savingsBadge} onClick={() => startCheckout('annual')} loading={loading === 'annual'} />
         </div>
         <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 20 }}>
           Secure payment via Stripe &middot; Cancel anytime
