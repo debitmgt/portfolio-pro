@@ -46,12 +46,12 @@ export const PLANS = {
   },
   annual: {
     name: 'Pro  -  Annual',
-    price: 50,
+    price: 49,
     priceId: process.env.STRIPE_ANNUAL_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [
       'Everything in Monthly',
-      '2 months free (save 16%)',
+      '2 months free (save 17%)',
       'Priority support',
     ],
   },
