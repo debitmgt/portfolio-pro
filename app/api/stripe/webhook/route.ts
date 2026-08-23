@@ -124,13 +124,24 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription
+        const eventSub = event.data.object as Stripe.Subscription
+
+        // Stripe does not guarantee webhook delivery order (a delayed retry
+        // of an older event can arrive after a newer one). Trusting this
+        // event's payload for status was the suspected cause of the
+        // stale-"pro"-after-cancellation bug seen 2026-08 - a late retry of
+        // an "active" event could overwrite a more recent cancellation.
+        // Stripe's own recommended fix: re-fetch the subscription's current
+        // state from the API instead of trusting the event payload, so every
+        // handler call - no matter what order it arrives in - converges on
+        // the same, actually-current truth.
+        const sub = await stripe.subscriptions.retrieve(eventSub.id)
         const userId = await getUserIdFromCustomer(sub.customer as string)
         if (!userId) break
 
         const isActive = ['active', 'trialing'].includes(sub.status)
         await setPlan(userId, isActive ? 'pro' : 'free')
-        console.log(`[webhook] ${event.type}: user ${userId} → ${isActive ? 'pro' : 'free'}`)
+        console.log(`[webhook] ${event.type}: user ${userId} → ${isActive ? 'pro' : 'free'} (live status: ${sub.status})`)
 
         await upsertSubscription(sub, userId)
         break
