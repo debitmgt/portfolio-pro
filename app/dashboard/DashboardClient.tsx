@@ -333,17 +333,51 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         </div>
       </header>
 
-      {/* ── Free plan banner ── */}
-      {plan === 'free' && (
-        <div style={{ background: 'var(--accent-tint)', borderBottom: '1px solid var(--border)', padding: '8px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: 13, color: 'var(--text)' }}>
-            Free plan &middot; {realHoldings.length}/{FREE_LIMIT}{' '}holdings &middot; Fundamentals &amp; Watchlist are Pro
-          </span>
-          <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 12, padding: '4px 14px' }}>
-            Upgrade to Pro →
-          </button>
-        </div>
-      )}
+      {/* ── Free plan banner ──
+          Once a free user is within 2 holdings of the cap (8 or 9 of 10), this
+          switches from the neutral everyday banner to an urgent "approaching
+          the wall" version - different tint, different copy - so the upgrade
+          prompt lands before they actually hit FREE_LIMIT and get blocked,
+          not just after. At >= FREE_LIMIT it stays in the urgent state since
+          they're now stuck (Add Holding is disabled) until they upgrade. */}
+      {plan === 'free' && (() => {
+        const remaining = FREE_LIMIT - realHoldings.length
+        const approachingLimit = remaining <= 2
+        return (
+          <div style={{
+            background: approachingLimit ? 'var(--yellow-tint)' : 'var(--accent-tint)',
+            borderBottom: '1px solid var(--border)', padding: '8px 24px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 13, color: 'var(--text)' }}>
+              {approachingLimit ? (
+                remaining > 0 ? (
+                  <>
+                    <strong style={{ color: 'var(--yellow)' }}>
+                      {realHoldings.length}/{FREE_LIMIT} holdings
+                    </strong>
+                    {' '}&middot; only {remaining} more before you hit the Free plan limit
+                  </>
+                ) : (
+                  <>
+                    <strong style={{ color: 'var(--yellow)' }}>
+                      {realHoldings.length}/{FREE_LIMIT} holdings
+                    </strong>
+                    {' '}&middot; you&rsquo;ve reached the Free plan limit &mdash; upgrade to add more
+                  </>
+                )
+              ) : (
+                <>
+                  Free plan &middot; {realHoldings.length}/{FREE_LIMIT}{' '}holdings &middot; Fundamentals &amp; Watchlist are Pro
+                </>
+              )}
+            </span>
+            <button className="btn-primary" onClick={() => setShowUpgrade(true)} style={{ fontSize: 12, padding: '4px 14px' }}>
+              Upgrade to Pro →
+            </button>
+          </div>
+        )
+      })()}
 
       {/* ── Tabs ── */}
       <nav style={{ display: 'flex', gap: 22, padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg)', overflowX: 'auto', flexShrink: 0 }}>
