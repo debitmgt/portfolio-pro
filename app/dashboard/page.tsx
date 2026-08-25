@@ -15,12 +15,13 @@ export default async function DashboardPage() {
   const userId = user.id
 
   const [profileResult, holdingsResult] = await Promise.all([
-    supabase.from('profiles').select('plan').eq('id', userId).single(),
+    supabase.from('profiles').select('plan, risk_preview_used_at').eq('id', userId).single(),
     supabase.from('holdings').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
   ])
 
   const plan: Plan = (profileResult.data?.plan as Plan) ?? 'free'
   const holdings: Holding[] = (holdingsResult.data ?? []) as Holding[]
+  const riskPreviewUsed = profileResult.data?.risk_preview_used_at != null
 
   return (
     <Suspense>
@@ -29,6 +30,7 @@ export default async function DashboardPage() {
         email={user.email ?? ''}
         plan={plan}
         initialHoldings={holdings}
+        riskPreviewUsed={riskPreviewUsed}
       />
     </Suspense>
   )
