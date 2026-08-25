@@ -1,4 +1,4 @@
-﻿// lib/supabase/types.ts
+// lib/supabase/types.ts
 export type Plan = 'free' | 'pro'
 
 export interface Profile {
@@ -14,6 +14,9 @@ export interface Profile {
   welcome_email_sent_at: string | null
   day3_email_sent_at: string | null
   day14_email_sent_at: string | null
+  // Stamped the moment a free user spends their one-time free preview of the
+  // Risk tab (see app/api/risk-preview/route.ts). Null = not used yet.
+  risk_preview_used_at: string | null
 }
 
 export interface Subscription {
