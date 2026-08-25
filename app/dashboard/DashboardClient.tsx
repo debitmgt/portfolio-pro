@@ -61,16 +61,42 @@ interface Props {
   email: string
   plan: Plan
   initialHoldings: Holding[]
+  riskPreviewUsed: boolean
 }
 
 interface PriceMap { [symbol: string]: number }
 
-export default function DashboardClient({ userId, email, plan, initialHoldings }: Props) {
+export default function DashboardClient({ userId, email, plan, initialHoldings, riskPreviewUsed }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const supabase = createClient()
 
   const [realHoldings, setHoldings] = useState<Holding[]>(initialHoldings)
+
+  // One-time free Risk-tab preview. `used` is seeded from the server (so a
+  // reload never grants a second look) and flips true the moment the reveal
+  // button is clicked - `revealedNow` just controls whether THIS page view
+  // shows it unblurred, so after the next reload/navigation it's back to
+  // locked for good even though `used` was already true before that.
+  const [riskPreviewState, setRiskPreviewState] = useState({
+    used: riskPreviewUsed,
+    revealedNow: false,
+    revealing: false,
+  })
+  async function revealRiskPreview() {
+    if (riskPreviewState.used || riskPreviewState.revealing) return
+    setRiskPreviewState(s => ({ ...s, revealing: true }))
+    try {
+      const res = await fetch('/api/risk-preview', { method: 'POST' })
+      if (res.ok) {
+        setRiskPreviewState({ used: true, revealedNow: true, revealing: false })
+      } else {
+        setRiskPreviewState(s => ({ ...s, revealing: false }))
+      }
+    } catch {
+      setRiskPreviewState(s => ({ ...s, revealing: false }))
+    }
+  }
 
   // When on, every tab reads from SAMPLE_HOLDINGS instead of the user's own
   // rows. Purely a client-side view swap - nothing is saved, and the user's
@@ -459,7 +485,16 @@ export default function DashboardClient({ userId, email, plan, initialHoldings }
         )}
 
         {activeTab === 'Risk' && (
-          <LockedTabPreview locked={plan === 'free'} tabName="Risk" onUpgrade={() => setShowUpgrade(true)}>
+          <LockedTabPreview
+            locked={plan === 'free' && !riskPreviewState.revealedNow}
+            tabName="Risk"
+            onUpgrade={() => setShowUpgrade(true)}
+            freePreview={plan === 'free' && !riskPreviewState.used ? {
+              onReveal: revealRiskPreview,
+              revealing: riskPreviewState.revealing,
+            } : undefined}
+            spent={plan === 'free' && riskPreviewState.used && !riskPreviewState.revealedNow}
+          >
             <RiskTab holdings={holdings} prices={prices} />
           </LockedTabPreview>
         )}
@@ -1707,7 +1742,21 @@ function PlanButton({ label, price, badge, onClick, loading }: { label: string; 
 // For free users, renders the REAL tab content (their own holdings/data)
 // blurred out, with an Upgrade CTA card overlaid. Lets people see there's
 // something real behind the paywall instead of just hitting a blank wall.
-function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: boolean; tabName: string; onUpgrade: () => void; children: React.ReactNode }) {
+//
+// `freePreview` adds a one-time "see it for real, once" option on top of that
+// (currently only wired up for Risk - see the Risk tab's call site). Clicking
+// it spends a per-account flag on the server (profiles.risk_preview_used_at)
+// and unblurs the tab for the rest of this page view only; on the next visit
+// it's back to the normal blurred card, now showing the `spent` copy instead
+// of the offer, since the one-time look has already been used.
+function LockedTabPreview({ locked, tabName, onUpgrade, children, freePreview, spent }: {
+  locked: boolean
+  tabName: string
+  onUpgrade: () => void
+  children: React.ReactNode
+  freePreview?: { onReveal: () => void; revealing: boolean }
+  spent?: boolean
+}) {
   if (!locked) return <>{children}</>
 
   return (
@@ -1748,11 +1797,25 @@ function LockedTabPreview({ locked, tabName, onUpgrade, children }: { locked: bo
         >
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>🔒 {tabName} is a Pro feature</div>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-            That's a live preview using your own holdings. Upgrade to unlock {tabName} and every other Pro tab.
+            {spent
+              ? `You've already used your one-time free look at ${tabName}. Upgrade to see it whenever you want.`
+              : <>That's a live preview using your own holdings. Upgrade to unlock {tabName} and every other Pro tab.</>}
           </p>
-          <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 13, padding: '9px 20px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>
-            Upgrade to Pro →
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {freePreview && (
+              <button
+                className="btn-outline"
+                onClick={freePreview.onReveal}
+                disabled={freePreview.revealing}
+                style={{ fontSize: 13, padding: '9px 16px', borderRadius: 6, cursor: freePreview.revealing ? 'default' : 'pointer' }}
+              >
+                {freePreview.revealing ? 'Unlocking…' : `See my ${tabName} once, free`}
+              </button>
+            )}
+            <button className="btn-primary" onClick={onUpgrade} style={{ fontSize: 13, padding: '9px 20px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>
+              Upgrade to Pro →
+            </button>
+          </div>
         </div>
       </div>
     </div>
