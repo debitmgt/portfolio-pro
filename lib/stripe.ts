@@ -34,6 +34,7 @@ export const PLANS = {
   monthly: {
     name: 'Pro  -  Monthly',
     price: PLAN_PRICING.monthly.price,
+    savingsBadge: PLAN_PRICING.monthly.savingsBadge,
     priceId: process.env.STRIPE_MONTHLY_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [
@@ -48,11 +49,12 @@ export const PLANS = {
   annual: {
     name: 'Pro  -  Annual',
     price: PLAN_PRICING.annual.price,
+    savingsBadge: PLAN_PRICING.annual.savingsBadge,
     priceId: process.env.STRIPE_ANNUAL_PRICE_ID!,
     holdingsLimit: Infinity,
     features: [
       'Everything in Monthly',
-      '2 months free (save 17%)',
+      `2 months free (${PLAN_PRICING.annual.savingsBadge?.toLowerCase() ?? 'save'})`,
       'Priority support',
     ],
   },

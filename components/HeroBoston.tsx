@@ -148,7 +148,7 @@ export default async function HeroBoston() {
               label={PLANS.annual.name}
               sub={`$${PLANS.annual.price}/yr`}
               href={CHECKOUT_ENABLED ? '/auth/login?plan=annual' : '#page-two'}
-              badge="Save 17%"
+              badge={PLANS.annual.savingsBadge}
             />
           </div>
           <a

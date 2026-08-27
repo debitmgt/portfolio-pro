@@ -146,7 +146,7 @@ export default async function PricingPage(props: { searchParams?: Promise<{ paus
               cta={CHECKOUT_ENABLED ? 'Start Pro Annual' : 'Coming soon'}
               ctaHref="/auth/login?plan=annual"
               highlight={false}
-              badge="Save 17%"
+              badge={PLANS.annual.savingsBadge}
               disabled={!CHECKOUT_ENABLED}
             />
           </div>
