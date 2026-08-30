@@ -45,16 +45,27 @@ export default function RankingsVideoHero() {
     fetchVideos()
   }, [])
 
+  // Advance to the next tier's clip when the current one finishes playing,
+  // rather than on a fixed timer — each clip runs ~20s and a flat 8s
+  // interval was cutting every clip off mid-play. The video's onEnded
+  // handler (below, on the <video> element) is what actually advances
+  // currentIndex now. This effect is just a safety net: if autoplay gets
+  // blocked and the element never starts playing at all, 'ended' would
+  // never fire and the carousel would get stuck on one clip forever, so
+  // after a grace period we check for that specific stuck state (still at
+  // time 0, still paused) and advance manually.
   useEffect(() => {
     if (videos.length === 0) return
 
-    // Cycle through videos every 8 seconds
-    const interval = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % videos.length)
+    const fallback = setTimeout(() => {
+      const el = videoRef.current
+      if (el && el.currentTime === 0 && el.paused) {
+        setCurrentIndex(prev => (prev + 1) % videos.length)
+      }
     }, 8000)
 
-    return () => clearInterval(interval)
-  }, [videos.length])
+    return () => clearTimeout(fallback)
+  }, [videos.length, currentIndex])
 
   // Brief real loading state while the fetch is in flight.
   if (loading) {
@@ -130,7 +141,8 @@ export default function RankingsVideoHero() {
           key={currentVideo.url}
           autoPlay
           muted={muted}
-          loop
+          loop={videos.length <= 1}
+          onEnded={() => setCurrentIndex(prev => (prev + 1) % videos.length)}
           playsInline
           style={{
             position: 'absolute',
