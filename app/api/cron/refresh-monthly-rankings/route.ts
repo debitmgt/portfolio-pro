@@ -49,17 +49,17 @@ const CURATED_UNIVERSE = [
   'JANX', 'ARWR', 'KRYS', 'BEAM', 'NTLA', 'EDIT', 'CRSP',
   'RXRX', 'RCUS', 'DNLI', 'MIRM', 'PCVX', 'ACAD',
   'YEXT', 'PRGS', 'SPSC', 'QLYS', 'BAND', 'ASAN', 
-  'AMPL', 'DOMO', 'BIGC',
+  'AMPL', 'DOMO',
 
-  'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CATO', 'SCVL',
-  
-  'TXT', 'CR', 'ITT', 'ATKR', 'CIR', 'ROLL',
+  'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CATO',
+
+  'TXT', 'CR', 'ITT', 'ATKR', 'CIR',
   'CRK', 'SM', 'MTDR',
 
-  'PRO', 'EGHT', 'NABL', 'DGII', 'MITK', 'CCSI', 'OSPN', 'KLTR', 'EVCM', 'APPN',
+  'EGHT', 'NABL', 'DGII', 'MITK', 'CCSI', 'OSPN', 'KLTR', 'EVCM', 'APPN',
   'IRWD', 'ARQT', 'CDNA', 'NRIX', 'KURA', 'IOVA', 'ORIC', 'SRRK', 'ARDX', 'ANAB',
-  'ZUMZ', 'DENN', 'PTLO', 'JACK', 'HZO', 'LOVE',
-  'MYE', 'THR',
+  'ZUMZ', 'PTLO', 'JACK', 'HZO', 'LOVE',
+  'MYE',
 ]
 
 type CapTier = 'large' | 'mid' | 'small'
@@ -318,7 +318,14 @@ export async function GET(req: NextRequest) {
   // the rankings write is the critical part and has already succeeded.
   let newsletterTriggered = false
   try {
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.ownfolio.net'
+    // Use the origin of the request that actually reached this route, not
+    // NEXT_PUBLIC_APP_URL. That variable is set to the non-www apex
+    // (https://ownfolio.net), which 308-redirects to the www host — and a
+    // cross-host redirect strips the Authorization header, so the newsletter
+    // received an unauthenticated request and returned 401 (confirmed in the
+    // 2026-09-01 production logs). req.nextUrl.origin is already the canonical
+    // host this request landed on, so there is no redirect to strip anything.
+    const base = req.nextUrl.origin
     const nlRes = await fetch(`${base}/api/cron/send-newsletter`, {
       method: 'GET',
       headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },

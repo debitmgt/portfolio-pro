@@ -1,1 +1,6 @@
-^C
+179 symbols to check
+152 PRO DEAD HTTP Error 404: Not Found
+173 DENN DEAD HTTP Error 404: Not Found
+179 THR DEAD HTTP Error 404: Not Found
+
+DEAD TICKERS: ['PRO', 'DENN', 'THR']

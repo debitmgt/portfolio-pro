@@ -3,9 +3,13 @@
 // Scheduled monthly send (see vercel.json — runs a few hours after
 // refresh-monthly-rankings to give that job time to finish). Two audiences,
 // same underlying monthly_rankings data:
-//   - Free: every confirmed, non-unsubscribed newsletter_subscribers row
-//     gets three unfiltered Top 25 lists — large/mid/small cap — identical
-//     content, identical for everyone.
+//   - Free: two sources, deduped by email — (a) every confirmed,
+//     non-unsubscribed newsletter_subscribers row (the standalone,
+//     account-free double-opt-in path) and (b) every profile with
+//     plan='free' and newsletter_opt_out=false, since creating a free
+//     account enrolls you in the newsletter automatically. Both get three
+//     unfiltered Top 25 lists — large/mid/small cap — identical content,
+//     identical for everyone.
 //   - Pro: every profile with plan='pro', newsletter_opt_out=false, and at
 //     least one watchlist_items row gets a digest filtered to their own
 //     watchlist symbols, grouped by the same tiers. Selection-based
@@ -107,7 +111,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: freeError.message }, { status: 500 })
   }
 
-  const freeBatch: BatchEmail[] = (freeSubs ?? []).map(sub => {
+  // Free accounts are enrolled in the newsletter at signup (profiles carries
+  // its own newsletter_opt_out flag and newsletter_unsubscribe_token), so they
+  // belong on this list too. Before 2026-09-01 this route queried only
+  // newsletter_subscribers, which meant every real free signup was silently
+  // excluded from the monthly send.
+  //
+  // newsletter_opt_out is filtered in JS rather than as a chained .eq() — see
+  // the note on the Pro query below for why.
+  const { data: allFreeProfiles, error: freeProfileError } = await admin
+    .from('profiles')
+    .select('*')
+    .eq('plan', 'free')
+  if (freeProfileError) {
+    await sendFailureAlert('send-newsletter', `profiles (free) query failed: ${freeProfileError.message}`)
+    return NextResponse.json({ error: freeProfileError.message }, { status: 500 })
+  }
+  const freeProfiles = (allFreeProfiles ?? []).filter(p => !p.newsletter_opt_out)
+
+  // Deduped by lowercased email so an address present in both tables gets one
+  // copy, not two. newsletter_subscribers wins when both exist, since that row
+  // carries the double-opt-in confirmation.
+  const freeBatch: BatchEmail[] = []
+  const seenFreeEmails = new Set<string>()
+  let freeFromSubscribers = 0
+  let freeFromProfiles = 0
+
+  for (const sub of freeSubs ?? []) {
+    if (!sub.email) continue
+    const key = sub.email.toLowerCase()
+    if (seenFreeEmails.has(key)) continue
+    seenFreeEmails.add(key)
     const rendered = renderMultiTierTop25Email({
       periodLabel,
       byTier,
@@ -115,8 +149,25 @@ export async function GET(req: NextRequest) {
       editorial: editorial ?? null,
       unsubscribeToken: sub.unsubscribe_token,
     })
-    return { to: sub.email, subject: rendered.subject, html: rendered.html }
-  })
+    freeBatch.push({ to: sub.email, subject: rendered.subject, html: rendered.html })
+    freeFromSubscribers += 1
+  }
+
+  for (const profile of freeProfiles) {
+    if (!profile.email) continue
+    const key = profile.email.toLowerCase()
+    if (seenFreeEmails.has(key)) continue
+    seenFreeEmails.add(key)
+    const rendered = renderMultiTierTop25Email({
+      periodLabel,
+      byTier,
+      weightedTop50: (weightedTop50 ?? []) as WeightedReturnRanking[],
+      editorial: editorial ?? null,
+      unsubscribeToken: profile.newsletter_unsubscribe_token,
+    })
+    freeBatch.push({ to: profile.email, subject: rendered.subject, html: rendered.html })
+    freeFromProfiles += 1
+  }
 
   // ── Pro tier: watchlist digest, filtered by selection only ─────────────
   // Filtering newsletter_opt_out in JS rather than as a second chained .eq()
@@ -198,7 +249,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     period: periodLabel,
-    free: { attempted: freeBatch.length, ...freeResult },
+    free: { attempted: freeBatch.length, fromSubscribers: freeFromSubscribers, fromProfiles: freeFromProfiles, ...freeResult },
     pro: { attempted: proBatch.length, skippedEmptyWatchlist: proSkippedEmptyWatchlist, ...proResult },
   })
   } catch (err) {
