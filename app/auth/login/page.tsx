@@ -92,7 +92,10 @@ function LoginForm() {
       return
     }
     if (TURNSTILE_SITE_KEY && !captchaToken) {
-      setError('Please complete the verification check below.')
+      setError('Tick the "Verify you are human" box above the button, then try again.')
+      // Recordings showed people hunting for this box. Bring it to them instead of
+      // printing a message and leaving them to find it.
+      turnstileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
     setLoading(true)
@@ -220,17 +223,39 @@ function LoginForm() {
         </label>
       )}
 
+      {/* Security check. Sits directly above the button with its own label and a
+          reserved height, so it reads as a required step and doesn't shove the
+          button down the page when the widget finishes loading. */}
+      {TURNSTILE_SITE_KEY && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Security check</label>
+          <div
+            ref={turnstileRef}
+            style={{ display: 'flex', justifyContent: 'center', minHeight: 65, alignItems: 'center' }}
+          />
+          {!captchaToken && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, textAlign: 'center' }}>
+              Tick the box above to confirm you&rsquo;re not a bot  -  it only takes a second.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Error sits immediately above the button, where the person is already
+          looking when they tap it. */}
       {error && (
         <div style={{
           background: 'var(--red-tint)', border: '1px solid var(--red)',
           borderRadius: 4, padding: '10px 14px', marginBottom: 16,
         }}>
           <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>
+          {TURNSTILE_SITE_KEY && !captchaToken && (
+            <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>
+              The security check above resets after each attempt  -  please tick it again before
+              you try.
+            </p>
+          )}
         </div>
-      )}
-
-      {TURNSTILE_SITE_KEY && (
-        <div ref={turnstileRef} style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }} />
       )}
 
       <button
