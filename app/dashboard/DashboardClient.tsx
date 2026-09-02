@@ -224,7 +224,7 @@ export default function DashboardClient({ userId, email, plan, initialHoldings, 
       return
     }
     setHoldings(prev => [...prev, data])
-    setNewSymbol(''); setNewShares(''); setNewCost(''); setNewTrail('8')
+    setNewSymbol(''); setNewShares(''); setNewCost(''); setNewTrail('20')
     setShowAddForm(false)
     fetchPrices([data.symbol])
     setSaving(false)
@@ -542,6 +542,11 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
 }) {
   const colorMap = getSymbolColorMap(holdings, prices)
   const editingHolding = editingId ? holdings.find(h => h.id === editingId) ?? null : null
+  // Optional fields (cost basis, drawdown alert) start collapsed. A first-time
+  // user only has to fill in two boxes to get a holding on screen; the jargon
+  // stays out of the way until they go looking for it.
+  const [showOptional, setShowOptional] = useState(false)
+  const firstTime = realCount === 0
   return (
     <div>
       {/* Sample-data banner - only while the sample view is switched on */}
@@ -552,10 +557,12 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap',
         }}>
           <div style={{ fontSize: 13, color: 'var(--text)' }}>
-            <strong>You&rsquo;re viewing sample data.</strong> These are example figures on well-known
-            symbols, shown so you can see how every tab works. They are not real holdings, not saved to
-            your account, and not a recommendation. Prices shown are live; the share counts and cost
-            bases are made up.
+            <strong>You&rsquo;re viewing sample data.</strong> These are example figures, shown so you
+            can see how every tab works. The symbols are large, widely-held, familiar companies used as
+            placeholders  -  they were not selected by Ownfolio for any investment reason. Prices shown
+            are live; the share counts and cost bases are made up. This is not a real portfolio, is not
+            saved to your account, and is not a recommendation as to any investment, allocation or
+            strategy, nor is it representative of any investment approach.
           </div>
           <button className="btn-outline" onClick={onExitSample} style={{ fontSize: 12, padding: '5px 14px', whiteSpace: 'nowrap' }}>
             Exit sample view
@@ -608,9 +615,9 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
             {[
-              { label: 'Shares', value: editShares, set: setEditShares, placeholder: '10' },
-              { label: 'Cost Basis (per share)', value: editCost, set: setEditCost, placeholder: '150.00' },
-              { label: 'Drawdown Threshold %', value: editTrail, set: setEditTrail, placeholder: '20' },
+              { label: 'Number of shares', value: editShares, set: setEditShares, placeholder: '10' },
+              { label: 'What you paid per share', value: editCost, set: setEditCost, placeholder: '150.00' },
+              { label: 'Drawdown alert level %', value: editTrail, set: setEditTrail, placeholder: '20' },
             ].map(({ label, value, set, placeholder }) => (
               <div key={label}>
                 <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 5, fontWeight: 500 }}>{label}</label>
@@ -636,45 +643,124 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
       {/* Holdings card grid */}
       {holdings.length > 0 ? (
         <HoldingsCardGrid holdings={holdings} prices={prices} onStartEdit={onStartEdit} onRemove={onRemove} />
-      ) : (
-        <div style={{ padding: '36px 24px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
-            Nothing here yet
+      ) : showAddForm ? null : (
+        <div style={{ padding: '40px 24px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
+          <div style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
+            Your portfolio is empty  -  let&rsquo;s fill it in
           </div>
-          <div style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 460, margin: '0 auto 20px' }}>
-            Add a position below to start tracking your own portfolio  -  or load sample data first
-            to see what every tab looks like with holdings in it.
+          <div style={{ fontSize: 13.5, color: 'var(--muted)', maxWidth: 480, margin: '0 auto 24px', lineHeight: 1.55 }}>
+            Ownfolio tracks the stocks <strong>you</strong> own, so nothing shows up until you tell it
+            what you hold. Once you add a holding, every tab above  -  returns, allocation, charts,
+            risk  -  fills in automatically.
           </div>
-          <button className="btn-primary" onClick={onTrySample} style={{ padding: '9px 20px' }}>
-            Try it with sample data
+          <button className="btn-primary" onClick={onTrySample} style={{ padding: '11px 26px', fontSize: 15 }}>
+            Show me sample data
           </button>
-          <div style={{ fontSize: 11.5, color: 'var(--muted-2)', marginTop: 10 }}>
-            Example figures only  -  nothing is saved to your account
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 14, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+            Fills every tab instantly with example figures so you can see how it all works. Or add your
+            own first holding using the button below.
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--muted-2)', marginTop: 8, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}>
+            Example figures on familiar large-company symbols, for demonstration only  -  nothing is
+            saved to your account, and nothing here is a recommendation
           </div>
         </div>
       )}
       {/* Add holding form */}
       {showAddForm ? (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 560 }}>
-          <h3 style={{ marginBottom: 18, fontSize: 15, fontWeight: 600 }}>Add Holding</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {[
-              { label: 'Ticker Symbol', value: newSymbol, set: setNewSymbol, placeholder: 'AAPL', upper: true },
-              { label: 'Shares', value: newShares, set: setNewShares, placeholder: '10' },
-              { label: 'Cost Basis (per share) - optional', value: newCost, set: setNewCost, placeholder: "Leave blank for today's price" },
-              { label: 'Drawdown Threshold %', value: newTrail, set: setNewTrail, placeholder: '20' },
-            ].map(({ label, value, set, placeholder, upper }) => (
-              <div key={label}>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 5, fontWeight: 500 }}>{label}</label>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, maxWidth: 560, marginLeft: holdings.length === 0 ? 'auto' : undefined, marginRight: holdings.length === 0 ? 'auto' : undefined }}>
+          <h3 style={{ marginBottom: 6, fontSize: 16, fontWeight: 700 }}>
+            {firstTime ? 'Add your first holding' : 'Add Holding'}
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.5 }}>
+            Just two things to start: which stock, and how many shares you own. Everything else is
+            optional and can be filled in later.
+          </p>
+
+          {/* The two required fields, one per row, each with plain-language help. */}
+          <div style={{ display: 'grid', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text)', marginBottom: 4, fontWeight: 600 }}>
+                Ticker symbol
+              </label>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
+                The short code a stock trades under  -  AAPL for Apple, KO for Coca-Cola, MSFT for
+                Microsoft. If you&rsquo;re not sure, it&rsquo;s on your brokerage statement next to the
+                company name.
+              </div>
+              <input
+                value={newSymbol}
+                onChange={e => setNewSymbol(e.target.value.toUpperCase())}
+                placeholder="AAPL"
+                onKeyDown={e => e.key === 'Enter' && onSave()}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text)', marginBottom: 4, fontWeight: 600 }}>
+                Number of shares
+              </label>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
+                How many shares of it you own. Partial shares are fine  -  enter 2.5 if that&rsquo;s
+                what you hold.
+              </div>
+              <input
+                value={newShares}
+                onChange={e => setNewShares(e.target.value)}
+                placeholder="10"
+                onKeyDown={e => e.key === 'Enter' && onSave()}
+              />
+            </div>
+          </div>
+
+          {/* Optional fields, collapsed by default. */}
+          <button
+            type="button"
+            onClick={() => setShowOptional(v => !v)}
+            style={{
+              background: 'none', border: 'none', padding: 0, marginTop: 18,
+              color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            {showOptional ? '- Hide optional details' : '+ Add optional details (what you paid, alert level)'}
+          </button>
+
+          {showOptional && (
+            <div style={{ display: 'grid', gap: 16, marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, color: 'var(--text)', marginBottom: 4, fontWeight: 600 }}>
+                  What you paid per share
+                </label>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
+                  The price you originally bought at, per share  -  not the total. This is what lets us
+                  work out your gain or loss. Leave it blank and we&rsquo;ll use today&rsquo;s price for
+                  now.
+                </div>
                 <input
-                  value={value}
-                  onChange={e => set(upper ? e.target.value.toUpperCase() : e.target.value)}
-                  placeholder={placeholder}
+                  value={newCost}
+                  onChange={e => setNewCost(e.target.value)}
+                  placeholder="Leave blank to use today's price"
                   onKeyDown={e => e.key === 'Enter' && onSave()}
                 />
               </div>
-            ))}
-          </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, color: 'var(--text)', marginBottom: 4, fontWeight: 600 }}>
+                  Drawdown alert level
+                </label>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
+                  How far this stock can fall from its recent high before it gets flagged on the
+                  Drawdown Alerts tab. Leave it at 20 unless you have a reason to change it.
+                </div>
+                <input
+                  value={newTrail}
+                  onChange={e => setNewTrail(e.target.value)}
+                  placeholder="20"
+                  onKeyDown={e => e.key === 'Enter' && onSave()}
+                />
+              </div>
+            </div>
+          )}
           {/* Said before they commit, not discovered afterwards. Only appears
               while the field is actually empty. */}
           {newCost.trim() === '' && (
@@ -683,14 +769,15 @@ function TrackerTab({ holdings, prices, plan, totalValue, totalCost, totalGain, 
               background: 'var(--yellow-tint)', border: '1px solid var(--yellow)', borderLeft: '3px solid var(--yellow)',
               fontSize: 12, color: 'var(--text)', lineHeight: 1.5,
             }}>
-              No cost basis? We&rsquo;ll record today&rsquo;s market price so you can start tracking right away.
-              Your gain and loss figures won&rsquo;t mean anything until you enter what you actually paid, so
-              this holding stays out of those totals until you do. You can add it any time.
+              You haven&rsquo;t entered what you paid, so we&rsquo;ll record today&rsquo;s market price and
+              you can start tracking right away. Gain and loss can&rsquo;t be worked out without your
+              actual purchase price, so this holding stays out of those totals until you add it  -  which
+              you can do any time by clicking Edit on the holding.
             </div>
           )}
           {formError && <p style={{ color: 'var(--red)', fontSize: 13, marginTop: 10 }}>{formError}</p>}
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button className="btn-primary" onClick={onSave} disabled={saving}>{saving ? 'Saving - ' : 'Add Holding'}</button>
+            <button className="btn-primary" onClick={onSave} disabled={saving} style={{ padding: '10px 22px' }}>{saving ? 'Saving - ' : (firstTime ? 'Add it to my portfolio' : 'Add Holding')}</button>
             <button className="btn-outline" onClick={onCancelAdd}>Cancel</button>
           </div>
         </div>
