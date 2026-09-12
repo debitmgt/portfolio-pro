@@ -222,6 +222,36 @@ export interface UserCorrelation {
   methodology_version: string
 }
 
+// Weekly companion to MonthlyRanking / WeightedReturnRanking: top 3 gainers
+// and top 3 losers per cap tier by week-over-week price % change (see
+// app/api/cron/refresh-weekly-movers). Same "compute once, filter never"
+// posture -- never derived from any user's holdings.
+export interface WeeklyMover {
+  id: string
+  week_label: string
+  symbol: string
+  company_name: string | null
+  cap_tier: CapTier | null
+  price_current: number | null
+  price_prior: number | null
+  pct_change: number | null
+  direction: 'gainer' | 'loser'
+  rank_in_tier: number
+  methodology_version: string
+  computed_at: string
+  created_at: string
+}
+
+// Raw weekly price snapshot for every symbol in the curated universe (not
+// just the top movers) -- used as next week's "prior price" baseline so
+// WeeklyMover's pct_change always has something to diff against.
+export interface WeeklyPriceSnapshot {
+  week_label: string
+  symbol: string
+  price: number
+  computed_at: string
+}
+
 // Supabase's typed query builder only infers correctly when Row/Insert/Update
 // are plain object types, not references to a named interface. Flatten<T>
 // forces TS to compute a fresh literal type while still deriving from the
@@ -291,6 +321,18 @@ export type Database = {
         Row: Flatten<WeightedReturnRanking>
         Insert: Flatten<Partial<WeightedReturnRanking> & { period_label: string; symbol: string; rank: number; methodology_version: string; computed_at: string }>
         Update: Flatten<Partial<WeightedReturnRanking>>
+        Relationships: []
+      }
+      weekly_movers: {
+        Row: Flatten<WeeklyMover>
+        Insert: Flatten<Partial<WeeklyMover> & { week_label: string; symbol: string; direction: 'gainer' | 'loser'; rank_in_tier: number; methodology_version: string; computed_at: string }>
+        Update: Flatten<Partial<WeeklyMover>>
+        Relationships: []
+      }
+      weekly_price_snapshots: {
+        Row: Flatten<WeeklyPriceSnapshot>
+        Insert: Flatten<Partial<WeeklyPriceSnapshot> & { week_label: string; symbol: string; price: number }>
+        Update: Flatten<Partial<WeeklyPriceSnapshot>>
         Relationships: []
       }
       support_messages: {

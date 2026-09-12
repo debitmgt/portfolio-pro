@@ -17,9 +17,14 @@
     },
     "app/api/cron/send-lifecycle-emails/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/refresh-weekly-movers/route.ts": {
+      "maxDuration": 700
     }
   },
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
   "crons": [
     {
       "path": "/api/cron/refresh-ticker-metrics",
@@ -32,6 +37,10 @@
     {
       "path": "/api/cron/send-lifecycle-emails",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-weekly-movers",
+      "schedule": "0 5 * * 1"
     }
   ]
 }
