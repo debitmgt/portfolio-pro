@@ -129,7 +129,8 @@ def _measure(d, s, font):
 
 
 def signed(v, dp=1):
-    return f"{'+' if v >= 0 else '\u2212'}{abs(v):.{dp}f}%"
+    sign = '+' if v >= 0 else '\u2212'
+    return f"{sign}{abs(v):.{dp}f}%"
 
 
 def ret_colour(v):
