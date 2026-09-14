@@ -183,33 +183,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let seededFromMonthly = false
-    if (priorPriceBySymbol.size === 0) {
-      // First-ever run: seed the baseline from the most recent monthly_rankings
-      // snapshot instead of publishing a no-comparison first week.
-      const { data: latestPeriodRow } = await admin
-        .from('monthly_rankings')
-        .select('period_label')
-        .order('period_label', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (latestPeriodRow?.period_label) {
-        const { data: seedRows, error: seedError } = await admin
-          .from('monthly_rankings')
-          .select('symbol, price_current')
-          .eq('period_label', latestPeriodRow.period_label)
-
-        if (!seedError && seedRows) {
-          for (const row of seedRows) {
-            if (row.price_current != null) {
-              priorPriceBySymbol.set(row.symbol, Number(row.price_current))
-            }
-          }
-          seededFromMonthly = true
-        }
-      }
-    }
+    // No fallback seeding from monthly_rankings.price_current: that column
+    // is never actually populated by refresh-monthly-rankings (it only
+    // calls Finnhub's profile2/metric endpoints, never /quote), so it's not
+    // a usable baseline. On a genuine first run (no prior weekly_price_snapshots
+    // at all yet) there's nothing real to diff against -- skip publishing a
+    // mover list this week rather than fabricate a flat 0%-change one, and
+    // let next week's run use the snapshot written below as its baseline.
+    const isFirstRun = priorPriceBySymbol.size === 0
 
     // ── 3. Cap tier per symbol, from the latest monthly_rankings entry ──
     const { data: tierRows, error: tierError } = await admin
@@ -253,6 +234,16 @@ export async function GET(req: NextRequest) {
     if (snapshotUpsertError) {
       await sendFailureAlert('refresh-weekly-movers', `weekly_price_snapshots upsert failed: ${snapshotUpsertError.message}`)
       return NextResponse.json({ error: snapshotUpsertError.message }, { status: 500 })
+    }
+
+    if (isFirstRun) {
+      return NextResponse.json({
+        ok: true,
+        week: weekLabel,
+        quotesFetched: usableQuotes.length,
+        firstRun: true,
+        note: 'No prior week to compare against yet -- snapshot written, movers start next week.',
+      })
     }
 
     // ── 5. Compute % change vs. baseline, per symbol with a known tier ──
@@ -377,7 +368,6 @@ export async function GET(req: NextRequest) {
       week: weekLabel,
       quotesFetched: usableQuotes.length,
       scored: scored.length,
-      seededFromMonthly,
       movers: summary,
     })
   } catch (err) {
