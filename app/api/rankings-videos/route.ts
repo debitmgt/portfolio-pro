@@ -1,5 +1,13 @@
 // app/api/rankings-videos/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+//
+// Serves the current month's "What Moved" video to RankingsVideoHero.
+//
+// Updated Sep 2026 for the "What Moved" pipeline (render_movers.py): one
+// combined ~34s vertical video per month covering all three cap tiers'
+// rank changes, instead of the retired 13-part-per-tier narrated countdown
+// format. Expected filename: movers_2026-09_final.mp4, uploaded by
+// scripts/upload-monthly-videos.mjs to monthly-videos/{YYYY-MM}/.
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
@@ -14,60 +22,45 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 interface RankingVideo {
-  tier: 'large' | 'mid' | 'small'
   url: string
   month: string
-  part: number
 }
 
-export async function GET(request: NextRequest) {
+const MOVERS_FILENAME = /^movers_(\d{4}-\d{2})_final\.mp4$/
+
+export async function GET() {
   try {
     // Get current month in YYYY-MM format
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    
-    // List all files in monthly-videos bucket
+
+    // List all files in monthly-videos bucket for the current month
     const { data, error } = await supabase.storage
       .from('monthly-videos')
       .list(currentMonth, { limit: 100 })
-    
+
     if (error) {
       console.error('Supabase storage error:', error)
       return NextResponse.json({ error: 'Failed to fetch videos' }, { status: 500 })
     }
-    
+
     if (!data || data.length === 0) {
       return NextResponse.json({ videos: [] })
     }
-    
-    // Parse filenames and build URLs
-    const videos: RankingVideo[] = data
-      .filter(file => file.name?.endsWith('.mp4'))
-      .map(file => {
-        const name = file.name || ''
-        // Expect: large_2026-08_part01_of_13_final.mp4
-        const match = name.match(/^(large|mid|small)_(\d{4}-\d{2})_part(\d+)_of_\d+_final\.mp4$/)
-        
-        if (!match) return null
-        
-        const [, tier, month, part] = match
-        const url = `${supabaseUrl}/storage/v1/object/public/monthly-videos/${currentMonth}/${name}`
-        
-        return {
-          tier: tier as 'large' | 'mid' | 'small',
-          url,
-          month,
-          part: parseInt(part, 10),
-        }
-      })
-      .filter((v): v is RankingVideo => v !== null)
-    
-    // Return only the first part of each tier for the hero rotation
-    const featured = ['large', 'mid', 'small']
-      .map(tier => videos.find(v => v.tier === tier && v.part === 1))
-      .filter((v): v is RankingVideo => v !== null)
-    
-    return NextResponse.json({ videos: featured })
+
+    // Find this month's single "What Moved" file. If it hasn't been
+    // uploaded yet, videos comes back empty and the hero renders nothing
+    // (same graceful-empty behavior as before).
+    const match = data.find(file => file.name && MOVERS_FILENAME.test(file.name))
+
+    if (!match) {
+      return NextResponse.json({ videos: [] })
+    }
+
+    const url = `${supabaseUrl}/storage/v1/object/public/monthly-videos/${currentMonth}/${match.name}`
+    const videos: RankingVideo[] = [{ url, month: currentMonth }]
+
+    return NextResponse.json({ videos })
   } catch (err) {
     console.error('API error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

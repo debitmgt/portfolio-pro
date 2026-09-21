@@ -1,15 +1,18 @@
 // scripts/upload-monthly-videos.mjs
 //
-// Uploads locally-rendered monthly ranking videos (from ./monthly_videos/,
-// produced by build_monthly_videos_auto.py) into the Supabase `monthly-videos`
-// storage bucket, which is what powers the RankingsVideoHero component on
-// the pricing page (app/components/RankingsVideoHero.tsx, read via
+// Uploads a locally-rendered monthly "What Moved" video (from
+// ./monthly_videos/, produced by render_movers.py) into the Supabase
+// `monthly-videos` storage bucket, which is what powers the
+// RankingsVideoHero component on the pricing page
+// (components/RankingsVideoHero.tsx, read via
 // app/api/rankings-videos/route.ts).
 //
-// Only uploads files matching the exact naming pattern the API route
-// expects: {tier}_{YYYY-MM}_partNN_of_TOTAL_final.mp4 — e.g.
-// large_2026-08_part01_of_13_final.mp4. Anything else in the folder
-// (silent intermediates, .bak files, etc.) is skipped.
+// Only uploads files matching the naming pattern the API route expects:
+//   movers_{YYYY-MM}_final.mp4 — e.g. movers_2026-09_final.mp4
+// The old per-tier 13-part narrated format (large_2026-08_part01_of_13_
+// final.mp4) is retired as of Sep 16, 2026 but still matched here so old
+// local folders don't silently no-op; anything else in the folder (silent
+// intermediates, .bak files, etc.) is skipped.
 //
 // Usage:
 //   node --env-file=.env.local scripts/upload-monthly-videos.mjs [path-to-folder]
@@ -23,7 +26,8 @@ import { createClient } from '@supabase/supabase-js'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 
-const FILENAME_PATTERN = /^(large|mid|small)_(\d{4}-\d{2})_part(\d+)_of_(\d+)_final\.mp4$/
+const MOVERS_PATTERN = /^movers_(\d{4}-\d{2})_final\.mp4$/
+const LEGACY_PART_PATTERN = /^(large|mid|small)_(\d{4}-\d{2})_part(\d+)_of_(\d+)_final\.mp4$/
 
 const folder = process.argv[2] || './monthly_videos'
 
@@ -46,11 +50,20 @@ try {
   process.exit(1)
 }
 
-const matches = entries.filter((name) => FILENAME_PATTERN.test(name))
+// Each entry: [filename, YYYY-MM]
+const matches = entries
+  .map((name) => {
+    const moversMatch = name.match(MOVERS_PATTERN)
+    if (moversMatch) return [name, moversMatch[1]]
+    const legacyMatch = name.match(LEGACY_PART_PATTERN)
+    if (legacyMatch) return [name, legacyMatch[2]]
+    return null
+  })
+  .filter(Boolean)
 
 if (matches.length === 0) {
-  console.error(`No files in "${folder}" match the expected pattern (e.g. large_2026-08_part01_of_13_final.mp4).`)
-  console.error(`Found ${entries.length} file(s) total — check the folder path and that build_monthly_videos_auto.py has run.`)
+  console.error(`No files in "${folder}" match the expected pattern (e.g. movers_2026-09_final.mp4).`)
+  console.error(`Found ${entries.length} file(s) total — check the folder path and that render_movers.py has run.`)
   process.exit(1)
 }
 
@@ -59,9 +72,7 @@ console.log(`Found ${matches.length} matching video(s) in "${folder}". Uploading
 let uploaded = 0
 let failed = 0
 
-for (const name of matches) {
-  const match = name.match(FILENAME_PATTERN)
-  const month = match[2] // YYYY-MM
+for (const [name, month] of matches) {
   const storagePath = `${month}/${name}`
   const filePath = join(folder, name)
 
