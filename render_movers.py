@@ -1,19 +1,34 @@
 #!/usr/bin/env python3
 """
-render_movers.py — monthly "What Moved" Short.
+render_movers.py — "What Moved" Shorts: monthly full cut + weekly teaser cuts.
 
-One self-contained ~34s vertical video per month, instead of 13 parts. Pulls
-the current and prior month's Top 25 straight from Supabase, works out the
-rank changes, and renders the cards described in the storyboard.
+One script drives both formats now, since the weekly-price-change pipeline
+(render_weekly_movers.py) was retired after getting flagged on YouTube for
+showing % return/gain figures. Everything below — monthly and weekly — reads
+only from `monthly_rankings` (current period vs. prior period) and shows rank
+POSITION and rank MOVEMENT only. No percentage gain/loss/return figure is
+ever drawn anywhere in this file.
 
 Look and feel (palette, fonts, header, wordmark) is imported from render_v2.py
 rather than copied, so changing the theme there changes it here too.
 
 Usage
-    python render_movers.py                     # latest two periods in the DB
-    python render_movers.py --period 2026-09    # pin the current month
-    python render_movers.py --demo              # sample data, no DB needed
-    python render_movers.py --keep-frames       # leave the PNGs behind
+    python render_movers.py                     # monthly video, latest two periods in the DB
+    python render_movers.py --period 2026-09     # pin the current month
+    python render_movers.py --demo               # sample data, no DB needed
+    python render_movers.py --keep-frames        # leave the PNGs behind
+
+    python render_movers.py --tier large         # weekly cut, large cap only
+    python render_movers.py --tier mid           # weekly cut, mid cap only
+    python render_movers.py --tier small         # weekly cut, small cap only
+    python render_movers.py --weekly             # weekly cut, all 3 tiers combined
+    python render_movers.py --auto-tier          # weekly cut, tier picked by the
+                                                   # 4-week rotation for the current
+                                                   # week number (large, mid, small,
+                                                   # all-tiers, then repeats).
+                                                   # This is what the scheduled task runs.
+    python render_movers.py --auto-tier --week-of 40   # override the computed
+                                                          # week number, e.g. for testing
 
 Reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env.local
 in the working directory (same file the rest of the pipeline uses).
@@ -21,6 +36,7 @@ in the working directory (same file the rest of the pipeline uses).
 Requires ffmpeg on PATH.
 """
 import argparse
+import datetime
 import json
 import os
 import shutil
@@ -35,12 +51,12 @@ from PIL import Image, ImageDraw
 
 from render_v2 import (
     W, H, FPS, THEME, PAD_X, TOP, LOGO_PATH,
-    _font, _text, _measure, signed,
+    _font, _text, _measure,
     _DISPLAY, _MONO, _MONO_REG, _SANS,
 )
 
 # ─── Fonts specific to this format ──────────────────────────────────────────
-# render_v2's sizes are tuned for a 25-row list. These cards show 1-5 items at
+# render_v2's sizes are tuned for a 25-row list. These cards show 1-6 items at
 # a time, so the type can be much larger.
 F_HERO       = _font(_DISPLAY, 132)   # the single big word on the hook card
 F_HERO_SUB   = _font(_MONO_REG, 40)
@@ -56,12 +72,14 @@ F_END        = _font(_DISPLAY, 68)
 F_END_SUB    = _font(_MONO_REG, 36)
 F_DISC       = _font(_MONO_REG, 22)   # persistent bottom disclaimer
 
-DISCLAIMER = "Historical performance only  \u00b7  Not financial advice"
+DISCLAIMER = "Historical performance only  ·  Not financial advice"
 
 TIER_LABEL = {"large": "Large Cap", "mid": "Mid Cap", "small": "Small Cap"}
 
 # ─── Timeline (seconds) ─────────────────────────────────────────────────────
 # Each card is (name, duration). Total drives the frame count.
+
+# Monthly video — full storyboard, all 3 tiers, ~34.5s.
 CARDS = [
     ("hook",      3.0),
     ("spotlight_down", 6.0),
@@ -71,6 +89,25 @@ CARDS = [
     ("still_one", 4.0),
     ("end",       2.5),
 ]
+
+# Weekly cut — a single summary card, ~14.5s. Top 3 climbers + top 3
+# decliners for whatever scope (one tier, or all 3 combined) was picked.
+WEEKLY_DUR = 14.5
+WEEKLY_CARDS = [("summary", WEEKLY_DUR)]
+
+
+# ─── Week / tier rotation ───────────────────────────────────────────────────
+def week_of_year(dt=None):
+    """Week N of the calendar year, day-of-year bucketed: (day_of_year-1)//7 + 1."""
+    dt = dt or datetime.date.today()
+    doy = dt.timetuple().tm_yday
+    return (doy - 1) // 7 + 1
+
+
+def auto_tier_for_week(week_num):
+    """4-week rotation: 0=large, 1=mid, 2=small, 3=all tiers combined (None)."""
+    rotation = ["large", "mid", "small", None]
+    return rotation[(week_num - 1) % 4]
 
 
 # ─── Data ───────────────────────────────────────────────────────────────────
@@ -124,15 +161,17 @@ def fetch_top25(base_url, key, period):
     return rows
 
 
-def compute_movers(cur_rows, prev_rows):
+def compute_movers(cur_rows, prev_rows, top_n=5):
     """Returns (climbers, decliners, new_entries, leaders).
 
     A symbol is matched within its own tier — a name that changes cap tier is
     reported as a new entry there rather than as a rank move, because its old
     rank belonged to a different list.
+
+    top_n caps how many climbers/decliners come back — 5 for the monthly
+    video, 3 for a weekly cut.
     """
     prev_rank = {(r["cap_tier"], r["symbol"]): r["rank"] for r in prev_rows}
-    prev_ret = {(r["cap_tier"], r["symbol"]): r["trailing_return_1y"] for r in prev_rows}
 
     moves, new_entries = [], []
     leaders = {}
@@ -150,16 +189,14 @@ def compute_movers(cur_rows, prev_rows):
                     "prev": prev_rank[keyed],
                     "cur": r["rank"],
                     "delta": delta,
-                    "prev_ret": prev_ret[keyed],
-                    "cur_ret": r["trailing_return_1y"],
                 })
         else:
             new_entries.append(r)
 
     climbers = sorted([m for m in moves if m["delta"] > 0],
-                      key=lambda m: -m["delta"])[:5]
+                      key=lambda m: -m["delta"])[:top_n]
     decliners = sorted([m for m in moves if m["delta"] < 0],
-                       key=lambda m: m["delta"])[:5]
+                       key=lambda m: m["delta"])[:top_n]
     return climbers, decliners, new_entries, leaders
 
 
@@ -238,7 +275,7 @@ def fade(colour, amount):
                  for b, c in zip(THEME["ground"], colour))
 
 
-# ─── Cards ──────────────────────────────────────────────────────────────────
+# ─── Cards (monthly video) ──────────────────────────────────────────────────
 def card_hook(d, img, t, month_label):
     draw_wordmark(img, d)
     a = ease_out(t / 0.45)
@@ -249,7 +286,7 @@ def card_hook(d, img, t, month_label):
     if b > 0:
         centered(d, 1120 - 30 * (1 - b), month_label.upper(), F_HERO_SUB,
                  fade(THEME["paper"], b))
-        centered(d, 1190 - 30 * (1 - b), "TOP 25 RANK CHANGES  \u00b7  3 CAP TIERS",
+        centered(d, 1190 - 30 * (1 - b), "TOP 25 RANK CHANGES  ·  3 CAP TIERS",
                  F_DISC, fade(THEME["muted"], b))
     bar_w = 200 * ease_out(t / 0.5)
     if bar_w > 1:
@@ -258,7 +295,10 @@ def card_hook(d, img, t, month_label):
 
 
 def card_spotlight(d, img, t, mover, kind):
-    """kind: 'down' or 'up'. Rank flips, then the return counter animates."""
+    """kind: 'down' or 'up'. Rank flips, then a places-moved counter animates.
+
+    Rank-only — no percentage return figure anywhere on this card.
+    """
     draw_wordmark(img, d)
     up = kind == "up"
     accent = THEME["gain"] if up else THEME["loss"]
@@ -276,21 +316,21 @@ def card_spotlight(d, img, t, mover, kind):
     if b > 0:
         flipped = t >= 0.42
         shown = mover["cur"] if flipped else mover["prev"]
-        line = f"#{mover['prev']}  \u2192  #{shown}"
+        line = f"#{mover['prev']}  →  #{shown}"
         tw, _ = _measure(d, line, F_RANKJUMP)
         # slight lift on the flip so the eye catches it
         lift = 12 if 0.42 <= t <= 0.50 else 0
         _text(d, ((W - tw) / 2, 990 - lift), line, F_RANKJUMP,
               fade(accent if flipped else THEME["paper"], b))
 
-    # Return counter
+    # Places-moved counter (was a 1-year-return % counter — removed so this
+    # card never shows a return/gain figure).
     c = ease_out((t - 0.45) / 0.45)
     if c > 0:
-        cur = mover["prev_ret"] + (mover["cur_ret"] - mover["prev_ret"]) * c
-        centered(d, 1250, "1-YEAR RETURN", F_DISC, fade(THEME["muted"], c))
-        # recolour live so a crossing of zero is visible
-        col = THEME["gain"] if cur >= 0 else THEME["loss"]
-        centered(d, 1310, signed(cur), F_COUNTER, fade(col, c))
+        places = round(abs(mover["delta"]) * c)
+        label2 = "PLACES CLIMBED" if up else "PLACES DROPPED"
+        centered(d, 1250, label2, F_DISC, fade(THEME["muted"], c))
+        centered(d, 1310, str(places), F_COUNTER, fade(accent, c))
 
         bar_y = 1440
         span_w = 620
@@ -298,7 +338,7 @@ def card_spotlight(d, img, t, mover, kind):
         d.rounded_rectangle([x0, bar_y, x0 + span_w, bar_y + 10], radius=5,
                             fill=THEME["hairline"])
         d.rounded_rectangle([x0, bar_y, x0 + span_w * c, bar_y + 10], radius=5,
-                            fill=col)
+                            fill=accent)
 
 
 def card_list(d, img, t, rows, title, up):
@@ -326,19 +366,23 @@ def card_list(d, img, t, rows, title, up):
               TIER_LABEL.get(m["tier"], m["tier"]).upper(), F_ROW_TIER,
               fade(THEME["muted"], a))
 
-        arrow = "\u25b2" if up else "\u25bc"
+        arrow = "▲" if up else "▼"
         move = f"{arrow} {abs(m['delta'])}"
         tw, _ = _measure(d, move, F_ROW_MOVE)
         _text(d, (W - PAD_X - 40 - tw, top + 52), move, F_ROW_MOVE,
               fade(accent, a))
 
-        rank_txt = f"#{m['prev']} \u2192 #{m['cur']}"
+        rank_txt = f"#{m['prev']} → #{m['cur']}"
         rw, _ = _measure(d, rank_txt, F_ROW_TIER)
         _text(d, (W - PAD_X - 40 - rw, top + 128), rank_txt, F_ROW_TIER,
               fade(THEME["muted"], a))
 
 
 def card_still_one(d, img, t, leaders):
+    """The #1 name in each tier, unchanged from last period.
+
+    Rank-only — shows '#1' per row rather than a trailing-return %.
+    """
     draw_wordmark(img, d)
     centered(d, 560, "STILL #1", F_SECTION, THEME["paper"])
     d.rectangle([(W - 160) / 2, 660, (W + 160) / 2, 666], fill=THEME["accent"])
@@ -358,9 +402,8 @@ def card_still_one(d, img, t, leaders):
               fade(THEME["paper"], a))
         _text(d, (PAD_X + 42, top + 110), TIER_LABEL[tier].upper(),
               F_ROW_TIER, fade(THEME["muted"], a))
-        rt = signed(r["trailing_return_1y"])
-        tw, _ = _measure(d, rt, F_ROW_MOVE)
-        _text(d, (W - PAD_X - 40 - tw, top + 58), rt, F_ROW_MOVE,
+        tw, _ = _measure(d, "#1", F_ROW_MOVE)
+        _text(d, (W - PAD_X - 40 - tw, top + 58), "#1", F_ROW_MOVE,
               fade(THEME["gain"], a))
 
     b = ease_out((t - 0.55) / 0.35)
@@ -373,7 +416,7 @@ def card_end(d, img, t):
     draw_wordmark(img, d)
     a = ease_out(t / 0.4)
     centered(d, 880, "FULL TOP 25 LISTS", F_END, fade(THEME["paper"], a))
-    centered(d, 970, "FREE \u00b7 NO CARD REQUIRED", F_END_SUB,
+    centered(d, 970, "FREE · NO CARD REQUIRED", F_END_SUB,
              fade(THEME["muted"], a))
     b = ease_out((t - 0.25) / 0.4)
     if b > 0:
@@ -381,6 +424,65 @@ def card_end(d, img, t):
         bw = 240 * b
         d.rectangle([(W - bw) / 2, 1220, (W + bw) / 2, 1226],
                     fill=THEME["accent"])
+
+
+# ─── Card (weekly cut) ──────────────────────────────────────────────────────
+def card_summary(d, img, t, climbers, decliners, scope_label, week_num, month_label):
+    """Single ~14.5s weekly-cut card: top climbers + top decliners for the
+    week's scope (one cap tier, or all 3 combined). Same wordmark,
+    disclaimer, and card styling as the monthly video. Rank-only, same as
+    every other card in this file.
+    """
+    draw_wordmark(img, d)
+
+    a = ease_out(t / (0.5 / WEEKLY_DUR))
+    centered(d, 330, "WEEKLY MOVERS", F_LABEL, fade(THEME["muted"], a))
+    centered(d, 380, scope_label.upper(), F_SECTION, fade(THEME["paper"], a))
+
+    b = ease_out((t - 0.3 / WEEKLY_DUR) / (0.4 / WEEKLY_DUR))
+    if b > 0:
+        sub = f"WEEK {week_num}  ·  {month_label.upper()}"
+        centered(d, 480, sub, F_DISC, fade(THEME["muted"], b))
+    d.rectangle([(W - 160) / 2, 520, (W + 160) / 2, 526], fill=THEME["accent"])
+
+    row_h = 148
+
+    def section(rows, up, y_label, y_rows_start, start_t):
+        accent = THEME["gain"] if up else THEME["loss"]
+        label = "CLIMBERS" if up else "DECLINERS"
+        c = ease_out((t - start_t) / (0.35 / WEEKLY_DUR))
+        if c > 0:
+            _text(d, (PAD_X, y_label), label, F_LABEL, fade(accent, c))
+
+        for i, m in enumerate(rows):
+            row_start = start_t + (0.35 + 0.18 * i) / WEEKLY_DUR
+            ra = ease_out((t - row_start) / (0.30 / WEEKLY_DUR))
+            if ra <= 0.01:
+                continue
+            slide = 40 * (1 - ra)
+            top = y_rows_start + i * row_h + slide
+
+            d.rounded_rectangle([PAD_X, top, W - PAD_X, top + row_h - 20],
+                                radius=16, fill=fade(THEME["surface_up"], ra))
+            _text(d, (PAD_X + 36, top + 20), m["symbol"], F_ROW_TICK,
+                  fade(THEME["paper"], ra))
+            _text(d, (PAD_X + 38, top + 90),
+                  TIER_LABEL.get(m["tier"], m["tier"]).upper(), F_ROW_TIER,
+                  fade(THEME["muted"], ra))
+
+            arrow = "▲" if up else "▼"
+            move = f"{arrow} {abs(m['delta'])}"
+            tw, _ = _measure(d, move, F_ROW_MOVE)
+            _text(d, (W - PAD_X - 36 - tw, top + 24), move, F_ROW_MOVE,
+                  fade(accent, ra))
+
+            rank_txt = f"#{m['prev']} → #{m['cur']}"
+            rw, _ = _measure(d, rank_txt, F_ROW_TIER)
+            _text(d, (W - PAD_X - 36 - rw, top + 98), rank_txt, F_ROW_TIER,
+                  fade(THEME["muted"], ra))
+
+    section(climbers, True, 600, 650, 0.9 / WEEKLY_DUR)
+    section(decliners, False, 1150, 1200, 2.3 / WEEKLY_DUR)
 
 
 # ─── Frame dispatch ─────────────────────────────────────────────────────────
@@ -403,6 +505,9 @@ def render_frame(card, t, ctx, global_t):
         card_still_one(d, img, t, ctx["leaders"])
     elif card == "end":
         card_end(d, img, t)
+    elif card == "summary":
+        card_summary(d, img, t, ctx["climbers"], ctx["decliners"],
+                    ctx["scope_label"], ctx["week_num"], ctx["month_label"])
 
     draw_disclaimer(d)
 
@@ -414,14 +519,15 @@ def render_frame(card, t, ctx, global_t):
     return img.convert("RGB")
 
 
-def build(ctx, out_path, fps=FPS, keep_frames=False):
-    total_secs = sum(dur for _, dur in CARDS)
+def build(ctx, out_path, cards=None, fps=FPS, keep_frames=False):
+    cards = cards if cards is not None else CARDS
+    total_secs = sum(dur for _, dur in cards)
     tmp = tempfile.mkdtemp(prefix="movers_")
     n = 0
     elapsed = 0.0
 
     try:
-        for card, dur in CARDS:
+        for card, dur in cards:
             frames = int(round(dur * fps))
             for i in range(frames):
                 t = i / max(1, frames - 1)
@@ -470,7 +576,29 @@ def main():
     ap.add_argument("--demo", action="store_true",
                     help="use built-in sample data instead of Supabase")
     ap.add_argument("--keep-frames", action="store_true")
+
+    # Weekly-cut flags. No flags at all = monthly video (unchanged behavior).
+    ap.add_argument("--tier", choices=["large", "mid", "small"],
+                    help="weekly cut, one cap tier only")
+    ap.add_argument("--weekly", action="store_true",
+                    help="weekly cut, all 3 tiers combined (no tier filter)")
+    ap.add_argument("--auto-tier", action="store_true",
+                    help="weekly cut, tier picked automatically by the 4-week "
+                         "rotation for the current week number; overrides "
+                         "--tier/--weekly")
+    ap.add_argument("--week-of", type=int, default=None,
+                    help="override the computed week number (for testing)")
     args = ap.parse_args()
+
+    weekly = args.tier is not None or args.weekly or args.auto_tier
+    week_num = args.week_of if args.week_of is not None else week_of_year()
+
+    if args.auto_tier:
+        tier = auto_tier_for_week(week_num)
+    elif args.tier:
+        tier = args.tier
+    else:
+        tier = None  # --weekly (all tiers) or monthly mode
 
     if args.demo:
         cur_rows, prev_rows = DEMO_CUR, DEMO_PREV
@@ -500,11 +628,43 @@ def main():
         if not cur_rows or not prev_rows:
             sys.exit("One of the periods returned no rows")
 
-    climbers, decliners, new_entries, leaders = compute_movers(cur_rows, prev_rows)
+    if weekly and tier:
+        cur_rows = [r for r in cur_rows if r["cap_tier"] == tier]
+        prev_rows = [r for r in prev_rows if r["cap_tier"] == tier]
+        if not cur_rows or not prev_rows:
+            sys.exit(f"No rows found for tier={tier} in one of the periods")
+
+    top_n = 3 if weekly else 5
+    climbers, decliners, new_entries, leaders = compute_movers(
+        cur_rows, prev_rows, top_n=top_n)
 
     if not climbers and not decliners:
         sys.exit("No rank changes found between those periods — nothing to show")
 
+    print(f"climbers: {[m['symbol'] for m in climbers]}")
+    print(f"decliners: {[m['symbol'] for m in decliners]}")
+
+    if weekly:
+        tier_tag = tier or "alltiers"
+        scope_label = TIER_LABEL.get(tier, "ALL 3 TIERS")
+        ctx = {
+            "month_label": month_name(period),
+            "climbers": climbers,
+            "decliners": decliners,
+            "scope_label": scope_label,
+            "week_num": week_num,
+        }
+        out = args.out or os.path.join(
+            "monthly_videos", f"weekly_cut_{tier_tag}_week{week_num}_final.mp4")
+        os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+
+        print(f"weekly cut: scope={scope_label} week={week_num}")
+        n, secs = build(ctx, out, cards=WEEKLY_CARDS, fps=args.fps,
+                        keep_frames=args.keep_frames)
+        print(f"wrote {out}  ({n} frames, {secs:.1f}s)")
+        return
+
+    print(f"new entries: {len(new_entries)}")
     ctx = {
         "month_label": month_name(period),
         "climbers": climbers,
@@ -517,11 +677,8 @@ def main():
                                    f"movers_{period}_final.mp4")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 
-    print(f"climbers: {[m['symbol'] for m in climbers]}")
-    print(f"decliners: {[m['symbol'] for m in decliners]}")
-    print(f"new entries: {len(new_entries)}")
-
-    n, secs = build(ctx, out, fps=args.fps, keep_frames=args.keep_frames)
+    n, secs = build(ctx, out, cards=CARDS, fps=args.fps,
+                    keep_frames=args.keep_frames)
     print(f"wrote {out}  ({n} frames, {secs:.1f}s)")
 
 
