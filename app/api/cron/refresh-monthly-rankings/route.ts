@@ -53,7 +53,7 @@ const CURATED_UNIVERSE = [
 
   'BOOT', 'SFIX', 'OLLI', 'PLAY', 'CATO',
 
-  'TXT', 'CR', 'ITT', 'ATKR', 'CIR',
+  'TXT', 'CR', 'ITT', 'ATKR',
   'CRK', 'SM', 'MTDR',
 
   'EGHT', 'NABL', 'DGII', 'MITK', 'CCSI', 'OSPN', 'KLTR', 'EVCM', 'APPN',
@@ -245,7 +245,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 })
   }
 
-  const weightedScorable = raw.filter(r =>
+  const weightedScorable = live.filter(r => r.marketCapM != null &&
     r.trailingReturn13w != null && r.trailingReturn26w != null && r.trailingReturn1y != null
   )
 
