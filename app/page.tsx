@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import DisclaimerFooter from '@/components/DisclaimerFooter'
 import HomeLedger, { PRICING, type TeaserTier } from './HomeLedger'
 import FeatureTourVideo from '@/components/FeatureTourVideo'
+import ComputationClock from '@/components/ComputationClock'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,26 @@ export default async function Home() {
     .maybeSingle()
 
   const period: string | null = latest?.period_label ?? null
+
+  // First and most recent computation timestamps, across all months, for the
+  // "how these numbers are computed" clock. Two small indexed queries rather
+  // than pulling every row and sorting in JS.
+  const { data: firstRun } = await supabase
+    .from('monthly_rankings')
+    .select('computed_at')
+    .order('computed_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: lastRun } = await supabase
+    .from('monthly_rankings')
+    .select('computed_at')
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const firstComputedAt: string | null = firstRun?.computed_at ?? null
+  const lastComputedAt: string | null = lastRun?.computed_at ?? null
 
   // IMPORTANT: only ranks 1 and 25 are ever queried, so ranks 2-24 never reach
   // the browser at all. Do not widen this select to fetch all 25 and hide the
@@ -145,6 +166,13 @@ export default async function Home() {
           <p className="ofh-note">
             Available the minute you confirm your email. Nothing here expires into a trial.
           </p>
+
+          {firstComputedAt && lastComputedAt && (
+            <ComputationClock
+              firstComputedAt={firstComputedAt}
+              lastComputedAt={lastComputedAt}
+            />
+          )}
           <div className="ofh-cards">
             <div className="ofh-card">
               <h3>All 75 ranked names</h3>
@@ -296,6 +324,21 @@ const CSS = `
 .ofh-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .ofh-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px}
 .ofh-card p{color:var(--muted);font-size:14px;margin:0}
+
+.ofc{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:22px 24px;margin-bottom:32px}
+.ofc-title{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:600}
+.ofc-rows{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.ofc-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:14px;padding:6px 0;border-bottom:1px solid var(--border)}
+.ofc-row:last-child{border-bottom:none}
+.ofc-label{color:var(--muted)}
+.ofc-value{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.ofc-live{color:var(--accent)}
+.ofc-note{font-size:12px;color:var(--muted-2);margin:0}
+@media (max-width:520px){
+  .ofc-row{flex-direction:column;gap:2px}
+  .ofc-value{text-align:left}
+}
+
 
 .ofh-tabs{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid var(--border);border-radius:6px;overflow:hidden}
 .ofh-tab{display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid var(--border);background:var(--bg)}
