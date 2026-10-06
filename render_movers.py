@@ -655,7 +655,7 @@ def main():
             "week_num": week_num,
         }
         out = args.out or os.path.join(
-            "monthly_videos", f"weekly_cut_{tier_tag}_week{week_num}_final.mp4")
+            "movers_videos", f"weekly_cut_{tier_tag}_week{week_num}_final.mp4")
         os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 
         print(f"weekly cut: scope={scope_label} week={week_num}")
@@ -673,7 +673,7 @@ def main():
         "leaders": leaders,
     }
 
-    out = args.out or os.path.join("monthly_videos",
+    out = args.out or os.path.join("movers_videos",
                                    f"movers_{period}_final.mp4")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 
