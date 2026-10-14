@@ -14,7 +14,7 @@
 // Desktop, per the project notes):
 //   node --env-file=.env.local scripts/upload-feature-tour-video.mjs
 //
-// Expects public/videos/feature-tour.mp4 to already exist locally (it was
+// Expects public/videos/feature-tour-v2.mp4 to already exist locally (it was
 // written into this folder directly). Creates the "site-assets" bucket if it
 // doesn't exist yet, uploads the video (upsert: true, so re-running this
 // after swapping in a new export just replaces it at the same URL — no code
@@ -29,7 +29,7 @@ import { readFileSync, existsSync } from 'fs'
 
 const BUCKET = 'site-assets'
 const FILES = [
-  { local: './public/videos/feature-tour.mp4', remote: 'feature-tour.mp4', contentType: 'video/mp4' },
+  { local: './public/videos/feature-tour-v2.mp4', remote: 'feature-tour-v2.mp4', contentType: 'video/mp4' },
 ]
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL

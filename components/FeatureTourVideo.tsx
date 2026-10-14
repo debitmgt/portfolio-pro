@@ -13,20 +13,25 @@ import { useState } from 'react'
 // up live post-deploy. The poster JPG is small enough to just live in
 // public/ normally (git-tracked, not covered by the *.mp4 rule).
 //
-// Portrait (9:16) source, so the box uses aspectRatio instead of
-// RankingsVideoHero's 16:9 padding-bottom trick — a landscape box was tried
-// and rejected (Aug 22, 2026) because it pillarboxes this portrait clip with
-// wide black bars on desktop; the portrait card fills its frame with no
-// dead space.
+// Oct 14, 2026: replaced the portrait (9:16) clip with the landscape
+// "Full Portfolio Tour" (1280x582, 2:22). The box now uses the clip's own
+// aspect ratio with objectFit: contain so nothing is cropped, and spans both
+// columns of the parent ofh-hero-grid (gridColumn 1 / -1) so it sits full
+// width under the heading instead of squeezed into one half-column. On mobile
+// the grid is already one column, so the span has no effect there.
+// New filename (feature-tour-v2.mp4) instead of overwriting feature-tour.mp4,
+// so the old portrait layout never serves the landscape file (or vice versa)
+// while the upload and the deploy happen at different times, and no CDN
+// cache of the old file is involved.
 //
-// The poster JPG stays local (public/videos/feature-tour-poster.jpg) — it's
-// 22KB, git-tracked fine (only *.mp4 is gitignored), and already deployed
+// The poster JPG stays local (public/videos/feature-tour-v2-poster.jpg) — it's
+// ~16KB, git-tracked fine (only *.mp4 is gitignored), and already deployed
 // successfully. Only the video itself needs the Supabase URL.
 //
 // Autoplay-muted-with-a-toggle mirrors RankingsVideoHero's approach (see that
 // file's comments): browsers block autoplay-with-sound outright, and even
 // where allowed it's a bad surprise on a page nobody asked to make noise.
-const VIDEO_SRC = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/site-assets/feature-tour.mp4`
+const VIDEO_SRC = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/site-assets/feature-tour-v2.mp4`
 
 export default function FeatureTourVideo() {
   const [muted, setMuted] = useState(true)
@@ -35,13 +40,12 @@ export default function FeatureTourVideo() {
   return (
     <div style={{
       position: 'relative',
+      gridColumn: '1 / -1',
       width: '100%',
-      maxWidth: 340,
-      margin: '0 auto',
-      aspectRatio: '9 / 16',
+      aspectRatio: '1280 / 582',
       borderRadius: 14,
       overflow: 'hidden',
-      background: '#000',
+      background: '#fff',
       border: '1px solid var(--border)',
       boxShadow: '0 16px 44px rgba(0,0,0,.16)',
     }}>
@@ -50,8 +54,8 @@ export default function FeatureTourVideo() {
         muted={muted}
         loop
         playsInline
-        poster="/videos/feature-tour-poster.jpg"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        poster="/videos/feature-tour-v2-poster.jpg"
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
       >
         <source src={VIDEO_SRC} type="video/mp4" />
       </video>
