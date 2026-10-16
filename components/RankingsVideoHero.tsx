@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 interface RankingVideo {
+  tier: 'large' | 'mid' | 'small'
   url: string
   month: string
 }
 
-// 'YYYY-MM' -> 'September 2026'
+// 'YYYY-MM' -> 'October 2026'
 function monthLabel(month: string): string {
   const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
     'August', 'September', 'October', 'November', 'December']
@@ -17,13 +18,19 @@ function monthLabel(month: string): string {
   return names[idx] ? `${names[idx]} ${y}` : month
 }
 
+const tierLabels = {
+  large: 'Big Cap',
+  mid: 'Mid Cap',
+  small: 'Small Cap',
+}
+
 export default function RankingsVideoHero() {
-  const [video, setVideo] = useState<RankingVideo | null>(null)
+  const [videos, setVideos] = useState<RankingVideo[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  // Starts muted — browsers block autoplay-with-sound outright, and even
-  // where it's technically allowed it's a bad surprise on a page nobody
-  // asked to make noise. This is React state (not just the video's own
-  // `muted` attribute) so a click can flip it.
+  // Starts muted: browsers block autoplay-with-sound, and it is a bad
+  // surprise on a page nobody asked to make noise. React state so a click
+  // can flip it.
   const [muted, setMuted] = useState(true)
 
   const toggleMuted = () => setMuted(m => !m)
@@ -33,8 +40,7 @@ export default function RankingsVideoHero() {
       try {
         const res = await fetch('/api/rankings-videos')
         const data = await res.json()
-        const videos: RankingVideo[] = data.videos || []
-        setVideo(videos[0] ?? null)
+        setVideos(data.videos || [])
       } catch (err) {
         console.error('Failed to fetch videos:', err)
       } finally {
@@ -60,14 +66,15 @@ export default function RankingsVideoHero() {
     )
   }
 
-  // No "What Moved" video uploaded for the current month yet — render
-  // nothing rather than getting stuck showing "Loading..." forever. Once
-  // it's uploaded to the Supabase monthly-videos bucket (still a manual
-  // step — see scripts/upload-monthly-videos.mjs), this section appears
-  // automatically.
-  if (!video) {
+  // No clips uploaded yet: render nothing rather than getting stuck on
+  // "Loading..." forever. Once clips are in the monthly-videos bucket,
+  // this section appears automatically.
+  if (videos.length === 0) {
     return null
   }
+
+  const currentVideo = videos[currentIndex]
+  const tier = currentVideo.tier
 
   return (
     <div style={{
@@ -77,9 +84,8 @@ export default function RankingsVideoHero() {
       {/* Mobile tuning (Aug 13, 2026, kept): the box below keeps its 16:9
           shape via padding-bottom, which on a narrow phone works out to
           only ~190px tall. minHeight gives it a floor on small screens (no
-          effect on desktop, where 16:9-of-width is already taller than
-          this). The video itself is vertical (1080x1920) and letterboxes
-          inside this box via objectFit: contain, same as the old format. */}
+          effect on desktop). The clips are vertical (1080x1920) and
+          letterbox inside this box via objectFit: contain. */}
       <style>{`
         .rvh-video-box { min-height: 0; }
         @media (max-width: 480px) {
@@ -91,10 +97,9 @@ export default function RankingsVideoHero() {
         }
       `}</style>
 
-      {/* Fixed (Aug 16, 2026): the video is just a video (no overlay drawn
-          on top of it) — the rendered "What Moved" clip already draws its
-          own logo, header and cards. Label/CTA live in a plain panel below
-          it. See RankingsVideoHero.tsx.bak-overlap for the old version. */}
+      {/* The video is just a video (no overlay drawn on top of it); the
+          label, tier dots and CTA live in the panel below it (Aug 16, 2026
+          layout, kept). */}
       <div className="rvh-video-box" style={{
         position: 'relative',
         width: '100%',
@@ -103,10 +108,11 @@ export default function RankingsVideoHero() {
         overflow: 'hidden',
       }}>
         <video
-          key={video.url}
+          key={currentVideo.url}
           autoPlay
           muted={muted}
-          loop
+          loop={videos.length === 1}
+          onEnded={() => setCurrentIndex(prev => (prev + 1) % videos.length)}
           playsInline
           style={{
             position: 'absolute',
@@ -117,13 +123,11 @@ export default function RankingsVideoHero() {
             objectFit: 'contain',
           }}
         >
-          <source src={video.url} type="video/mp4" />
+          <source src={currentVideo.url} type="video/mp4" />
         </video>
 
-        {/* Mute/unmute toggle. The "What Moved" videos are silent by
-            design, but the button is shown regardless — clicking it on a
-            silent clip is harmless, and it stays ready for any future clip
-            that does carry audio. */}
+        {/* Mute/unmute toggle (kept). The clips are silent by design, but
+            the button stays ready for any clip that carries audio. */}
         <button
           onClick={toggleMuted}
           aria-label={muted ? 'Unmute video' : 'Mute video'}
@@ -179,7 +183,7 @@ export default function RankingsVideoHero() {
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
         }}>
-          What Moved
+          {monthLabel(currentVideo.month)} Rankings
         </div>
 
         <div>
@@ -189,14 +193,51 @@ export default function RankingsVideoHero() {
             marginBottom: 4,
             letterSpacing: '-0.3px',
           }}>
-            {monthLabel(video.month)}
+            {tierLabels[tier]}
           </div>
           <div className="rvh-tier-desc" style={{
             fontSize: 14,
             color: 'var(--muted)',
           }}>
-            Top 25 rank changes across all 3 cap tiers
+            Top 25 performers ranked by 1-year return
           </div>
+        </div>
+
+        {/* Tier indicators */}
+        <div role="group" aria-label="Cap tier" style={{
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'center',
+        }}>
+          {videos.map((video, idx) => (
+            <button
+              key={video.tier}
+              type="button"
+              onClick={() => setCurrentIndex(idx)}
+              aria-label={`Show ${tierLabels[video.tier]} rankings`}
+              aria-pressed={idx === currentIndex}
+              title={tierLabels[video.tier]}
+              style={{
+                width: 24,
+                height: 24,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span aria-hidden="true" style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: idx === currentIndex ? 'var(--accent)' : 'rgba(255,255,255,0.4)',
+                transition: 'background 0.3s ease',
+              }} />
+            </button>
+          ))}
         </div>
 
         {/* CTA Button */}
@@ -224,7 +265,7 @@ export default function RankingsVideoHero() {
           el.style.transform = 'translateY(0)'
           el.style.boxShadow = '0 4px 16px rgba(255,106,0,.3)'
         }}>
-          Join Pro to See All Product Features
+          Join Pro to See All Rankings
         </Link>
       </div>
     </div>
