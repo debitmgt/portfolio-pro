@@ -9,11 +9,11 @@
 // place going forward.
 export const PLAN_PRICING = {
   monthly: {
-    price: 1.95,
+    price: 0.99,
     savingsBadge: undefined as string | undefined,
   },
   annual: {
-    price: 19,
-    savingsBadge: 'Save 18%',
+    price: 9.99,
+    savingsBadge: 'Save 15%',
   },
 } as const

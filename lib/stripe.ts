@@ -54,7 +54,7 @@ export const PLANS = {
     holdingsLimit: Infinity,
     features: [
       'Everything in Monthly',
-      `2 months free (${PLAN_PRICING.annual.savingsBadge?.toLowerCase() ?? 'save'})`,
+      PLAN_PRICING.annual.savingsBadge ?? 'Save vs. monthly',
       'Priority support',
     ],
   },

@@ -63,7 +63,6 @@ export async function GET(req: NextRequest) {
     // This route is only hit on the free->paid upgrade path (existing Pro
     // users manage/renew via the billing portal instead), so every checkout
     // that reaches here is genuinely a first month for that customer.
-    ...(plan === 'monthly' ? { discounts: [{ coupon: 'FIRSTMONTH495' }] } : {}),
   })
 
   return NextResponse.json({ url: checkoutSession.url })
