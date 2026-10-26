@@ -85,6 +85,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── App filter ───────────────────────────────────────────────────────────
+  // This Stripe account is shared with sevenlevelsmoney.com, and Stripe sends
+  // every account event to every endpoint. Only act on Ownfolio purchases:
+  // a subscription counts as Ownfolio if any of its items is on the same
+  // Stripe product as the current Pro monthly/annual prices.
+  let ownfolioProducts: Set<string> | null = null
+  async function getOwnfolioProducts(): Promise<Set<string>> {
+    if (ownfolioProducts) return ownfolioProducts
+    const ids = [process.env.STRIPE_MONTHLY_PRICE_ID, process.env.STRIPE_ANNUAL_PRICE_ID].filter(Boolean) as string[]
+    const prices = await Promise.all(ids.map((id) => stripe.prices.retrieve(id)))
+    ownfolioProducts = new Set(prices.map((p) => (typeof p.product === 'string' ? p.product : p.product.id)))
+    return ownfolioProducts
+  }
+  async function isOwnfolioSubscription(sub: Stripe.Subscription): Promise<boolean> {
+    if (sub.metadata?.app === 'ownfolio') return true
+    const products = await getOwnfolioProducts()
+    return sub.items.data.some((i) =>
+      products.has(typeof i.price.product === 'string' ? i.price.product : i.price.product.id)
+    )
+  }
+
   // ── Event handlers ───────────────────────────────────────────────────────
 
   try {
@@ -93,6 +114,15 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         const customerId = session.customer as string
+
+        // Ownfolio only sells subscriptions. One-time payments (e.g. Seven
+        // Levels quick_climb) and other apps' subscriptions are skipped.
+        if (session.mode !== 'subscription' || !session.subscription) break
+        const sessionSub = await stripe.subscriptions.retrieve(session.subscription as string)
+        if (session.metadata?.app !== 'ownfolio' && !(await isOwnfolioSubscription(sessionSub))) {
+          console.log('[webhook] checkout.session.completed: not an Ownfolio subscription, skipping', session.id)
+          break
+        }
 
         // Prefer metadata userId set at checkout creation time; fall back to DB lookup
         const userId =
@@ -115,10 +145,7 @@ export async function POST(req: NextRequest) {
         await setPlan(userId, 'pro')
         console.log('[webhook] checkout.session.completed: upgraded user', userId)
 
-        if (session.subscription) {
-          const sub = await stripe.subscriptions.retrieve(session.subscription as string)
-          await upsertSubscription(sub, userId)
-        }
+        await upsertSubscription(sessionSub, userId)
         break
       }
 
@@ -136,6 +163,7 @@ export async function POST(req: NextRequest) {
         // handler call - no matter what order it arrives in - converges on
         // the same, actually-current truth.
         const sub = await stripe.subscriptions.retrieve(eventSub.id)
+        if (!(await isOwnfolioSubscription(sub))) break
         const userId = await getUserIdFromCustomer(sub.customer as string)
         if (!userId) break
 
@@ -149,6 +177,7 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
+        if (!(await isOwnfolioSubscription(sub))) break
         const userId = await getUserIdFromCustomer(sub.customer as string)
         if (!userId) break
 

@@ -58,7 +58,10 @@ export async function GET(req: NextRequest) {
     success_url: `${baseUrl}/dashboard?upgraded=1`,
     cancel_url: `${baseUrl}/pricing`,
     // Pass user ID so the webhook can find them even before customer lookup is set up
-    metadata: { supabase_user_id: user.id },
+    metadata: { supabase_user_id: user.id, app: 'ownfolio' },
+    // Tag the subscription too, so the webhook can tell Ownfolio
+    // subscriptions apart from Seven Levels ones on the shared Stripe account.
+    subscription_data: { metadata: { supabase_user_id: user.id, app: 'ownfolio' } },
     // First-month discount ($9 -> $4.95) applied automatically on Monthly only.
     // This route is only hit on the free->paid upgrade path (existing Pro
     // users manage/renew via the billing portal instead), so every checkout
