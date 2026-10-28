@@ -28,6 +28,10 @@ export const dynamic = 'force-dynamic'
 
 const METHODOLOGY_VERSION = 'v1'
 const MAX_SYMBOLS_PER_RUN = 60 // Finnhub free-tier rate-limit friendly
+// Per-request limit so one slow Finnhub response can't stall the whole run past
+// maxDuration (Oct 28 2026 run timed out at 60s with no alert). A timed-out
+// symbol falls into the catch below and is scored neutral for that run.
+const FETCH_TIMEOUT_MS = 10_000
 
 interface RawMetrics {
   symbol: string
@@ -49,8 +53,12 @@ function percentileRank(values: (number | null)[], value: number | null): number
 async function fetchRawMetrics(symbol: string, key: string): Promise<RawMetrics> {
   try {
     const [profileRes, metricRes] = await Promise.all([
-      fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${key}`),
-      fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${key}`),
+      fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${key}`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      }),
+      fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${key}`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      }),
     ])
     const profile = profileRes.ok ? await profileRes.json() : {}
     const metricData = metricRes.ok ? await metricRes.json() : {}
